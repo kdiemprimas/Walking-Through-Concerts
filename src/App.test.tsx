@@ -17,6 +17,13 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText(/right here/i)).toBeInTheDocument()
   })
 
+  it('uses the DV V-eri pet as the website brand logo', () => {
+    render(<App />)
+    const logos = screen.getAllByRole('img', { name: 'DV V-eri' })
+    expect(logos).toHaveLength(2)
+    expect(logos[0]).toHaveAttribute('src', expect.stringContaining('dv-v-eri-logo'))
+  })
+
   it('switches between concert filters', async () => {
     const user = userEvent.setup()
     render(<App />)

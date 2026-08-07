@@ -33,9 +33,10 @@ a { color: inherit; text-decoration: none; }
 
 .app-shell { min-height: 100vh; }
 .sidebar { position: fixed; inset: 0 auto 0 0; width: 232px; padding: 28px 18px 22px; display: flex; flex-direction: column; z-index: 20; color: var(--ink); background: #ffe4e9; border-right: 1px solid #d9abb4; }
-.brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 31px; font-size: 10px; letter-spacing: .11em; line-height: 1.5; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 4px 27px; font-size: 10px; letter-spacing: .1em; line-height: 1.5; }
 .brand b { color: #ac3f5f; }
-.brand-mark { width: 39px; height: 39px; flex: 0 0 auto; display: grid; place-items: center; background: var(--coral); color: var(--ink); border: 1px solid var(--ink); border-radius: 50% 48% 46% 52%; font: 800 14px 'DM Mono'; transform: rotate(-7deg); box-shadow: 2px 2px 0 var(--ink); }
+.brand-mark { width: 54px; height: 54px; flex: 0 0 auto; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg, #ffd2d9, #ffc2a9); border: 1px solid #7d3047; border-radius: 50% 48% 46% 52%; transform: rotate(-4deg); box-shadow: 3px 3px 0 rgba(75,43,53,.78); }
+.brand-mark img { width: 112%; height: 112%; object-fit: contain; transform: translateY(3px) rotate(4deg); filter: drop-shadow(0 2px 1px rgba(91,39,55,.16)); }
 .sidebar nav { display: grid; gap: 5px; }
 .nav-item { display: flex; align-items: center; gap: 12px; padding: 11px 13px; color: #77525f; border: 1px solid transparent; border-radius: 10px; font-size: 13px; font-weight: 700; }
 .nav-item:hover, .nav-item.active { color: var(--ink); background: rgba(255,250,247,.72); border-color: #e0bac2; }
@@ -176,7 +177,7 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 
 @media (max-width: 800px) {
   body { padding-bottom: 68px; }.sidebar { display: none; }.main-content { margin-left: 0; padding: 0 18px 40px; }
-  .topbar { position: sticky; top: 0; z-index: 15; min-height: 64px; background: rgba(255,247,242,.94); backdrop-filter: blur(10px); }.mobile-brand { display: flex; align-items: center; gap: 8px; font-size: 11px; }.mobile-brand .brand-mark { width: 30px; height: 30px; font-size: 10px; }.search-box { display: none; }.topbar-actions { gap: 6px; }.add-button, .secondary-button { padding: 8px 10px; font-size: 9px; box-shadow: none; }.topbar-actions svg { width: 15px; }
+  .topbar { position: sticky; top: 0; z-index: 15; min-height: 64px; background: rgba(255,247,242,.94); backdrop-filter: blur(10px); }.mobile-brand { display: flex; align-items: center; gap: 8px; font-size: 11px; }.mobile-brand .brand-mark { width: 38px; height: 38px; box-shadow: 2px 2px 0 rgba(75,43,53,.7); }.search-box { display: none; }.topbar-actions { gap: 6px; }.add-button, .secondary-button { padding: 8px 10px; font-size: 9px; box-shadow: none; }.topbar-actions svg { width: 15px; }
   .intro-row { padding: 27px 0 22px; align-items: start; }.intro-copy { max-width: 250px; }.year-picker { height: 31px; white-space: nowrap; }.year-picker svg { display: none; }
   .stats-grid { grid-template-columns: 1fr 1fr; }.stat-card { min-height: 138px; padding: 17px; }.stat-coral { grid-column: 1 / -1; }.stat-card strong { font-size: 23px; }.sparkline { width: 50%; }
   .dashboard-grid { margin-top: 30px; }.concert-ticket { grid-template-columns: 100px 1fr 18px; }.concert-ticket-toggle { grid-template-columns: 100px minmax(0, 1fr); }.poster { padding: 10px; }.poster strong { font-size: 12px; }.ticket-info { padding: 12px 68px 10px 13px; }.ticket-meta { display: grid; }.ticket-footer { margin-top: 9px; }.ticket-actions { right: 28px; top: 8px; }.concert-ticket::before, .concert-ticket::after { right: 9px; }

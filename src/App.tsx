@@ -53,6 +53,7 @@ type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { ty
 
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
 const BUDGET = 90_000_000
+const PET_LOGO = `${import.meta.env.BASE_URL}dv-v-eri-logo.png`
 const categories: Category[] = ['Vé concert', 'Di chuyển', 'Lưu trú', 'Ăn uống', 'Merchandise', 'Chuẩn bị', 'Khác']
 const pastelPairs = [
   ['#ffd1d9', '#7d3047'],
@@ -266,11 +267,11 @@ function App() {
 }
 
 function Sidebar() {
-  return <aside className="sidebar"><div className="brand"><span className="brand-mark">W/</span><span>WALKING THROUGH<br /><b>CONCERTS</b></span></div><nav aria-label="Điều hướng chính"><a className="nav-item active" href="#main-content"><Home size={18} /> Tổng quan</a><a className="nav-item" href="#concerts"><Ticket size={18} /> Concert</a><a className="nav-item" href="#expenses"><ReceiptText size={18} /> Chi phí</a><a className="nav-item" href="#reports"><BarChart3 size={18} /> Báo cáo</a></nav><div className="sidebar-note"><Heart size={17} fill="currentColor" /><span>Lưu từng khoảnh khắc,<br />nhớ từng sân khấu.</span></div><div className="sidebar-bottom"><a className="nav-item" href="#settings"><Settings size={18} /> Cài đặt</a><div className="profile"><div className="avatar">DV</div><div><strong>Diễm Võ</strong><span>concert lover</span></div></div></div></aside>
+  return <aside className="sidebar"><div className="brand"><span className="brand-mark"><img src={PET_LOGO} alt="DV V-eri" /></span><span>WALKING THROUGH<br /><b>CONCERTS</b></span></div><nav aria-label="Điều hướng chính"><a className="nav-item active" href="#main-content"><Home size={18} /> Tổng quan</a><a className="nav-item" href="#concerts"><Ticket size={18} /> Concert</a><a className="nav-item" href="#expenses"><ReceiptText size={18} /> Chi phí</a><a className="nav-item" href="#reports"><BarChart3 size={18} /> Báo cáo</a></nav><div className="sidebar-note"><Heart size={17} fill="currentColor" /><span>Lưu từng khoảnh khắc,<br />nhớ từng sân khấu.</span></div><div className="sidebar-bottom"><a className="nav-item" href="#settings"><Settings size={18} /> Cài đặt</a><div className="profile"><div className="avatar">DV</div><div><strong>Diễm Võ</strong><span>concert lover</span></div></div></div></aside>
 }
 
 function Topbar({ query, onQueryChange, onAddExpense, onAddConcert }: { query: string; onQueryChange: (value: string) => void; onAddExpense: () => void; onAddConcert: () => void }) {
-  return <header className="topbar"><div className="mobile-brand"><span className="brand-mark">W/</span><b>CONCERTS</b></div><label className="search-box" htmlFor="site-search"><Search size={17} aria-hidden="true" /><span className="sr-only">Tìm kiếm</span><input id="site-search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Tìm concert, nghệ sĩ..." /><kbd>⌘ K</kbd></label><div className="topbar-actions"><button className="secondary-button" onClick={onAddConcert}><Ticket size={17} aria-hidden="true" /> Thêm concert</button><button className="add-button" onClick={onAddExpense}><Plus size={17} aria-hidden="true" /> Thêm chi phí</button></div></header>
+  return <header className="topbar"><div className="mobile-brand"><span className="brand-mark"><img src={PET_LOGO} alt="DV V-eri" /></span><b>CONCERTS</b></div><label className="search-box" htmlFor="site-search"><Search size={17} aria-hidden="true" /><span className="sr-only">Tìm kiếm</span><input id="site-search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Tìm concert, nghệ sĩ..." /><kbd>⌘ K</kbd></label><div className="topbar-actions"><button className="secondary-button" onClick={onAddConcert}><Ticket size={17} aria-hidden="true" /> Thêm concert</button><button className="add-button" onClick={onAddExpense}><Plus size={17} aria-hidden="true" /> Thêm chi phí</button></div></header>
 }
 
 function ConcertTicket({ concert, expenses, spent, isExpanded, onToggle, onAddExpense, onEdit, onDelete, onEditExpense, onDeleteExpense }: { concert: Concert; expenses: Expense[]; spent: number; isExpanded: boolean; onToggle: () => void; onAddExpense: () => void; onEdit: () => void; onDelete: () => void; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
