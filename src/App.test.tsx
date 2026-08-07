@@ -13,6 +13,9 @@ describe('Walking Through Concerts dashboard', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: /xin chào, diễm/i })).toBeInTheDocument()
     expect(screen.getByText('3 concerts')).toBeInTheDocument()
+    expect(screen.getByText('TỔNG DỰ TÍNH')).toBeInTheDocument()
+    expect(screen.getByText('69.500.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('TỔNG THỰC TẾ')).toBeInTheDocument()
     expect(screen.getByText('68.500.000 ₫')).toBeInTheDocument()
     expect(screen.getByText(/right here/i)).toBeInTheDocument()
   })
@@ -93,10 +96,13 @@ describe('Walking Through Concerts dashboard', () => {
     await user.click(screen.getByRole('button', { name: /thêm chi phí/i }))
     const dialog = screen.getByRole('dialog', { name: /thêm chi phí mới/i })
     await user.type(within(dialog).getByLabelText('Tên khoản chi'), 'Taxi về khách sạn')
-    await user.clear(within(dialog).getByLabelText('Số tiền'))
-    await user.type(within(dialog).getByLabelText('Số tiền'), '500000')
+    await user.clear(within(dialog).getByLabelText('Dự tính / người'))
+    await user.type(within(dialog).getByLabelText('Dự tính / người'), '600000')
+    await user.clear(within(dialog).getByLabelText('Thực tế / người'))
+    await user.type(within(dialog).getByLabelText('Thực tế / người'), '500000')
     await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
     expect(screen.getByText('Taxi về khách sạn')).toBeInTheDocument()
+    expect(screen.getByText('70.100.000 ₫')).toBeInTheDocument()
     expect(screen.getByText('69.000.000 ₫')).toBeInTheDocument()
 
     view.unmount()
@@ -104,16 +110,53 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('Taxi về khách sạn')).toBeInTheDocument()
   })
 
+  it('multiplies planned and actual amounts by the selected number of people', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: /thêm chi phí/i }))
+    const dialog = screen.getByRole('dialog', { name: /thêm chi phí mới/i })
+    await user.type(within(dialog).getByLabelText('Tên khoản chi'), 'Khách sạn nhóm')
+    await user.clear(within(dialog).getByLabelText('Dự tính / người'))
+    await user.type(within(dialog).getByLabelText('Dự tính / người'), '1000000')
+    await user.clear(within(dialog).getByLabelText('Thực tế / người'))
+    await user.type(within(dialog).getByLabelText('Thực tế / người'), '1200000')
+    await user.selectOptions(within(dialog).getByLabelText('Số người'), '3')
+
+    const calculation = within(dialog).getByRole('status', { name: 'Tổng chi phí đã tính' })
+    expect(within(calculation).getByText('3.000.000 ₫')).toBeInTheDocument()
+    expect(within(calculation).getByText('3.600.000 ₫')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
+    expect(screen.getByText('72.500.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('72.100.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('3 người')).toBeInTheDocument()
+  })
+
   it('edits an existing expense', async () => {
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Chỉnh sửa Vé VIP Soundcheck' }))
     const dialog = screen.getByRole('dialog', { name: /chỉnh sửa chi phí/i })
-    const amount = within(dialog).getByLabelText('Số tiền')
+    const amount = within(dialog).getByLabelText('Thực tế / người')
     await user.clear(amount)
     await user.type(amount, '8000000')
     await user.click(within(dialog).getByRole('button', { name: 'Lưu thay đổi' }))
     expect(screen.getByText('68.650.000 ₫')).toBeInTheDocument()
+  })
+
+  it('migrates a saved legacy amount to planned and actual values for one person', async () => {
+    localStorage.setItem('walking-through-concerts-data-v2', JSON.stringify({
+      concerts: [{ id: 'legacy-concert', artist: 'EXO', tour: 'EXOPLANET', city: 'Seoul', date: '2026-01-01', venue: 'KSPO', status: 'past', color: '#ffd1d9', accent: '#7d3047' }],
+      expenses: [{ id: 'legacy-expense', name: 'Vé cũ', concertId: 'legacy-concert', category: 'Vé concert', amount: 1000000, date: '2026-01-01' }],
+    }))
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa Vé cũ' }))
+    const dialog = screen.getByRole('dialog', { name: /chỉnh sửa chi phí/i })
+    expect(within(dialog).getByLabelText('Dự tính / người')).toHaveValue(1000000)
+    expect(within(dialog).getByLabelText('Thực tế / người')).toHaveValue(1000000)
+    expect(within(dialog).getByLabelText('Số người')).toHaveValue('1')
   })
 
   it('creates and edits a concert', async () => {

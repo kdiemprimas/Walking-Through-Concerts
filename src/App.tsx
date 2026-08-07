@@ -44,11 +44,20 @@ type Expense = {
   name: string
   concertId: string
   category: Category
-  amount: number
+  plannedAmount: number
+  actualAmount: number
+  peopleCount: number
   date: string
 }
 
 type AppData = { concerts: Concert[]; expenses: Expense[] }
+type StoredExpense = Omit<Expense, 'plannedAmount' | 'actualAmount' | 'peopleCount'> & {
+  plannedAmount?: number
+  actualAmount?: number
+  peopleCount?: number
+  amount?: number
+}
+type StoredData = { concerts: Concert[]; expenses: StoredExpense[] }
 type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | null
 
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
@@ -69,30 +78,50 @@ const initialData: AppData = {
     { id: 'concert-3', artist: 'KANGDANIEL', tour: 'FOLLOW AGAIN', city: 'Seoul', date: '2025-10-13', venue: 'KSPO Dome', status: 'past', color: '#f5c7d8', accent: '#69324a' },
   ],
   expenses: [
-    { id: 'expense-1', name: 'Vé VIP Soundcheck', concertId: 'concert-1', category: 'Vé concert', amount: 7_850_000, date: '2026-08-06' },
-    { id: 'expense-2', name: 'Vé máy bay khứ hồi', concertId: 'concert-1', category: 'Di chuyển', amount: 4_280_000, date: '2026-07-28' },
-    { id: 'expense-3', name: 'Ăn tối sau concert', concertId: 'concert-3', category: 'Ăn uống', amount: 1_120_000, date: '2025-10-14' },
-    { id: 'expense-4', name: 'Vé CAT 1', concertId: 'concert-2', category: 'Vé concert', amount: 4_500_000, date: '2026-06-01' },
-    { id: 'expense-5', name: 'Vé concert Seoul', concertId: 'concert-3', category: 'Vé concert', amount: 16_450_000, date: '2025-07-10' },
-    { id: 'expense-6', name: 'Chuyến bay Seoul', concertId: 'concert-3', category: 'Di chuyển', amount: 12_000_000, date: '2025-08-20' },
-    { id: 'expense-7', name: 'Di chuyển nội thành', concertId: 'concert-2', category: 'Di chuyển', amount: 2_920_000, date: '2026-05-08' },
-    { id: 'expense-8', name: 'Khách sạn Bangkok', concertId: 'concert-1', category: 'Lưu trú', amount: 3_300_000, date: '2026-01-18' },
-    { id: 'expense-9', name: 'Khách sạn Seoul', concertId: 'concert-3', category: 'Lưu trú', amount: 9_000_000, date: '2025-08-22' },
-    { id: 'expense-10', name: 'Merchandise', concertId: 'concert-3', category: 'Merchandise', amount: 5_080_000, date: '2025-10-13' },
-    { id: 'expense-11', name: 'Trang phục concert', concertId: 'concert-2', category: 'Chuẩn bị', amount: 2_000_000, date: '2026-04-20' },
+    { id: 'expense-1', name: 'Vé VIP Soundcheck', concertId: 'concert-1', category: 'Vé concert', plannedAmount: 8_000_000, actualAmount: 7_850_000, peopleCount: 1, date: '2026-08-06' },
+    { id: 'expense-2', name: 'Vé máy bay khứ hồi', concertId: 'concert-1', category: 'Di chuyển', plannedAmount: 4_500_000, actualAmount: 4_280_000, peopleCount: 1, date: '2026-07-28' },
+    { id: 'expense-3', name: 'Ăn tối sau concert', concertId: 'concert-3', category: 'Ăn uống', plannedAmount: 1_000_000, actualAmount: 1_120_000, peopleCount: 1, date: '2025-10-14' },
+    { id: 'expense-4', name: 'Vé CAT 1', concertId: 'concert-2', category: 'Vé concert', plannedAmount: 5_000_000, actualAmount: 4_500_000, peopleCount: 1, date: '2026-06-01' },
+    { id: 'expense-5', name: 'Vé concert Seoul', concertId: 'concert-3', category: 'Vé concert', plannedAmount: 16_000_000, actualAmount: 16_450_000, peopleCount: 1, date: '2025-07-10' },
+    { id: 'expense-6', name: 'Chuyến bay Seoul', concertId: 'concert-3', category: 'Di chuyển', plannedAmount: 12_500_000, actualAmount: 12_000_000, peopleCount: 1, date: '2025-08-20' },
+    { id: 'expense-7', name: 'Di chuyển nội thành', concertId: 'concert-2', category: 'Di chuyển', plannedAmount: 3_000_000, actualAmount: 2_920_000, peopleCount: 1, date: '2026-05-08' },
+    { id: 'expense-8', name: 'Khách sạn Bangkok', concertId: 'concert-1', category: 'Lưu trú', plannedAmount: 3_500_000, actualAmount: 3_300_000, peopleCount: 1, date: '2026-01-18' },
+    { id: 'expense-9', name: 'Khách sạn Seoul', concertId: 'concert-3', category: 'Lưu trú', plannedAmount: 8_500_000, actualAmount: 9_000_000, peopleCount: 1, date: '2025-08-22' },
+    { id: 'expense-10', name: 'Merchandise', concertId: 'concert-3', category: 'Merchandise', plannedAmount: 5_000_000, actualAmount: 5_080_000, peopleCount: 1, date: '2025-10-13' },
+    { id: 'expense-11', name: 'Trang phục concert', concertId: 'concert-2', category: 'Chuẩn bị', plannedAmount: 2_500_000, actualAmount: 2_000_000, peopleCount: 1, date: '2026-04-20' },
   ],
 }
 
 const cloneInitialData = (): AppData => JSON.parse(JSON.stringify(initialData)) as AppData
 
+const normalizeExpense = (expense: StoredExpense): Expense => {
+  const legacyAmount = Number(expense.amount) || 0
+  return {
+    id: expense.id,
+    name: expense.name,
+    concertId: expense.concertId,
+    category: expense.category,
+    plannedAmount: Number.isFinite(expense.plannedAmount) ? Math.max(0, Number(expense.plannedAmount)) : legacyAmount,
+    actualAmount: Number.isFinite(expense.actualAmount) ? Math.max(0, Number(expense.actualAmount)) : legacyAmount,
+    peopleCount: Math.min(20, Math.max(1, Math.round(Number(expense.peopleCount) || 1))),
+    date: expense.date,
+  }
+}
+
 const loadData = (): AppData => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) as AppData : cloneInitialData()
+    if (!saved) return cloneInitialData()
+    const parsed = JSON.parse(saved) as StoredData
+    if (!Array.isArray(parsed.concerts) || !Array.isArray(parsed.expenses)) return cloneInitialData()
+    return { concerts: parsed.concerts, expenses: parsed.expenses.map(normalizeExpense) }
   } catch {
     return cloneInitialData()
   }
 }
+
+const getPlannedTotal = (expense: Expense) => expense.plannedAmount * expense.peopleCount
+const getActualTotal = (expense: Expense) => expense.actualAmount * expense.peopleCount
 
 const formatMoney = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
 const formatCompact = (value: number) => `${(value / 1_000_000).toFixed(value % 1_000_000 ? 1 : 0)}M`
@@ -112,10 +141,17 @@ function App() {
   }, [data])
 
   const closeModal = useCallback(() => setModal(null), [])
-  const totalSpent = useMemo(() => data.expenses.reduce((sum, expense) => sum + expense.amount, 0), [data.expenses])
-  const concertSpend = useMemo(() => Object.fromEntries(data.concerts.map((concert) => [concert.id, data.expenses.filter((expense) => expense.concertId === concert.id).reduce((sum, expense) => sum + expense.amount, 0)])), [data])
+  const totalPlanned = useMemo(() => data.expenses.reduce((sum, expense) => sum + getPlannedTotal(expense), 0), [data.expenses])
+  const totalActual = useMemo(() => data.expenses.reduce((sum, expense) => sum + getActualTotal(expense), 0), [data.expenses])
+  const concertTotals = useMemo(() => Object.fromEntries(data.concerts.map((concert) => {
+    const expenses = data.expenses.filter((expense) => expense.concertId === concert.id)
+    return [concert.id, {
+      planned: expenses.reduce((sum, expense) => sum + getPlannedTotal(expense), 0),
+      actual: expenses.reduce((sum, expense) => sum + getActualTotal(expense), 0),
+    }]
+  })), [data])
   const breakdown = useMemo(() => {
-    const getTotal = (matching: Category[]) => data.expenses.filter((expense) => matching.includes(expense.category)).reduce((sum, expense) => sum + expense.amount, 0)
+    const getTotal = (matching: Category[]) => data.expenses.filter((expense) => matching.includes(expense.category)).reduce((sum, expense) => sum + getActualTotal(expense), 0)
     return [
       { label: 'Vé concert', amount: getTotal(['Vé concert']), className: 'coral' },
       { label: 'Di chuyển', amount: getTotal(['Di chuyển']), className: 'rose' },
@@ -160,14 +196,14 @@ function App() {
 
   const upcomingCount = data.concerts.filter((concert) => concert.status === 'upcoming').length
   const pastCount = data.concerts.length - upcomingCount
-  const remaining = BUDGET - totalSpent
+  const remaining = BUDGET - totalActual
   const donutStops = useMemo(() => {
-    const percentages = breakdown.map((item) => totalSpent ? item.amount / totalSpent * 100 : 0)
+    const percentages = breakdown.map((item) => totalActual ? item.amount / totalActual * 100 : 0)
     const a = percentages[0]
     const b = a + percentages[1]
     const c = b + percentages[2]
     return `conic-gradient(var(--coral) 0 ${a}%, var(--rose) ${a}% ${b}%, var(--apricot) ${b}% ${c}%, var(--berry) ${c}% 100%)`
-  }, [breakdown, totalSpent])
+  }, [breakdown, totalActual])
 
   return (
     <div className="app-shell">
@@ -188,8 +224,11 @@ function App() {
 
         <section className="stats-grid" aria-label="Tổng quan chi tiêu">
           <article className="stat-card stat-coral">
-            <div className="stat-top"><span>TỔNG CHI TIÊU</span><WalletCards size={20} aria-hidden="true" /></div>
-            <strong>{formatMoney(totalSpent)}</strong>
+            <div className="stat-top"><span>CHI PHÍ CỦA BẠN</span><WalletCards size={20} aria-hidden="true" /></div>
+            <div className="stat-dual-values">
+              <div><span>TỔNG DỰ TÍNH</span><strong>{formatMoney(totalPlanned)}</strong></div>
+              <div><span>TỔNG THỰC TẾ</span><strong>{formatMoney(totalActual)}</strong></div>
+            </div>
             <p><span className="trend-up">Dữ liệu của bạn</span> · tự động cập nhật</p>
             <svg className="sparkline" viewBox="0 0 250 48" role="img" aria-label="Chi tiêu có xu hướng tăng"><path d="M2 40 C30 37 38 29 62 31 S92 45 116 29 S146 10 169 17 S202 30 248 2" /><circle cx="248" cy="2" r="3" /></svg>
           </article>
@@ -206,8 +245,8 @@ function App() {
           <article className="stat-card stat-cream">
             <div className="stat-top"><span>NGÂN SÁCH CÒN LẠI</span><span className="tiny-label">2026</span></div>
             <strong>{formatMoney(remaining)}</strong>
-            <div className="budget-track"><span style={{ width: `${Math.min(100, totalSpent / BUDGET * 100)}%` }} /></div>
-            <p>Đã dùng {Math.round(totalSpent / BUDGET * 100)}% của {formatMoney(BUDGET)}</p>
+            <div className="budget-track"><span style={{ width: `${Math.min(100, totalActual / BUDGET * 100)}%` }} /></div>
+            <p>Đã dùng {Math.round(totalActual / BUDGET * 100)}% của {formatMoney(BUDGET)}</p>
           </article>
         </section>
 
@@ -226,7 +265,7 @@ function App() {
                   key={concert.id}
                   concert={concert}
                   expenses={concertExpenses}
-                  spent={concertSpend[concert.id] ?? 0}
+                  totals={concertTotals[concert.id] ?? { planned: 0, actual: 0 }}
                   isExpanded={expandedConcertId === concert.id}
                   onToggle={() => setExpandedConcertId((current) => current === concert.id ? null : concert.id)}
                   onAddExpense={() => setModal({ type: 'expense', concertId: concert.id })}
@@ -242,9 +281,9 @@ function App() {
 
           <aside className="spending-panel" aria-labelledby="spending-title">
             <div className="panel-title-row"><div><p className="section-kicker">PHÂN BỔ</p><h2 id="spending-title">Tiền đã đi đâu?</h2></div><Sparkles size={20} aria-hidden="true" /></div>
-            <div className="donut-wrap"><div className="donut" style={{ background: donutStops }} role="img" aria-label={breakdown.map((item) => `${item.label} ${Math.round(item.amount / (totalSpent || 1) * 100)}%`).join(', ')}><div><strong>{formatCompact(totalSpent)}</strong><span>TỔNG</span></div></div></div>
+            <div className="donut-wrap"><div className="donut" style={{ background: donutStops }} role="img" aria-label={breakdown.map((item) => `${item.label} ${Math.round(item.amount / (totalActual || 1) * 100)}%`).join(', ')}><div><strong>{formatCompact(totalActual)}</strong><span>THỰC TẾ</span></div></div></div>
             <ul className="legend-list">
-              {breakdown.map((item) => <li key={item.label}><span className={`legend-dot ${item.className}`} /><span>{item.label}</span><strong>{formatCompact(item.amount)}</strong><small>{Math.round(item.amount / (totalSpent || 1) * 100)}%</small></li>)}
+              {breakdown.map((item) => <li key={item.label}><span className={`legend-dot ${item.className}`} /><span>{item.label}</span><strong>{formatCompact(item.amount)}</strong><small>{Math.round(item.amount / (totalActual || 1) * 100)}%</small></li>)}
             </ul>
             <button className="report-link">Xem báo cáo chi tiết <ArrowUpRight size={16} aria-hidden="true" /></button>
           </aside>
@@ -274,14 +313,14 @@ function Topbar({ query, onQueryChange, onAddExpense, onAddConcert }: { query: s
   return <header className="topbar"><div className="mobile-brand"><span className="brand-mark"><img src={PET_LOGO} alt="DV V-eri" /></span><b>CONCERTS</b></div><label className="search-box" htmlFor="site-search"><Search size={17} aria-hidden="true" /><span className="sr-only">Tìm kiếm</span><input id="site-search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Tìm concert, nghệ sĩ..." /><kbd>⌘ K</kbd></label><div className="topbar-actions"><button className="secondary-button" onClick={onAddConcert}><Ticket size={17} aria-hidden="true" /> Thêm concert</button><button className="add-button" onClick={onAddExpense}><Plus size={17} aria-hidden="true" /> Thêm chi phí</button></div></header>
 }
 
-function ConcertTicket({ concert, expenses, spent, isExpanded, onToggle, onAddExpense, onEdit, onDelete, onEditExpense, onDeleteExpense }: { concert: Concert; expenses: Expense[]; spent: number; isExpanded: boolean; onToggle: () => void; onAddExpense: () => void; onEdit: () => void; onDelete: () => void; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
+function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddExpense, onEdit, onDelete, onEditExpense, onDeleteExpense }: { concert: Concert; expenses: Expense[]; totals: { planned: number; actual: number }; isExpanded: boolean; onToggle: () => void; onAddExpense: () => void; onEdit: () => void; onDelete: () => void; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
   const detailsId = `concert-expenses-${concert.id}`
   const titleId = `${detailsId}-title`
   return <div className={`concert-entry ${isExpanded ? 'is-open' : ''}`}>
     <article className="concert-ticket" style={{ '--ticket-color': concert.color, '--ticket-accent': concert.accent } as CSSProperties}>
       <button type="button" className="concert-ticket-toggle" aria-label={`${isExpanded ? 'Ẩn' : 'Xem'} chi phí ${concert.artist}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={onToggle}>
         <div className="poster" aria-hidden="true"><span className="tape" /><div className="poster-orbit" /><span className="poster-city">{concert.city}</span><strong>{concert.artist}</strong><small>LIVE · {concert.date.slice(0, 4)}</small></div>
-        <div className="ticket-info"><div className="ticket-status"><span className={concert.status}>{concert.status === 'upcoming' ? 'SẮP TỚI' : 'ĐÃ ĐI'}</span></div><p className="artist-name">{concert.artist}</p><h3>{concert.tour}</h3><div className="ticket-meta"><span><CalendarDays size={15} />{formatDate(concert.date)}</span><span><MapPin size={15} />{concert.venue}</span></div><div className="ticket-footer"><span>ĐÃ CHI</span><strong>{formatMoney(spent)}</strong><span className="ticket-details-hint">{isExpanded ? 'Ẩn chi phí' : 'Xem chi phí'} <ChevronDown size={15} aria-hidden="true" /></span></div></div>
+        <div className="ticket-info"><div className="ticket-status"><span className={concert.status}>{concert.status === 'upcoming' ? 'SẮP TỚI' : 'ĐÃ ĐI'}</span></div><p className="artist-name">{concert.artist}</p><h3>{concert.tour}</h3><div className="ticket-meta"><span><CalendarDays size={15} />{formatDate(concert.date)}</span><span><MapPin size={15} />{concert.venue}</span></div><div className="ticket-footer"><span className="ticket-total"><small>DỰ TÍNH</small><strong>{formatMoney(totals.planned)}</strong></span><span className="ticket-total actual"><small>THỰC TẾ</small><strong>{formatMoney(totals.actual)}</strong></span><span className="ticket-details-hint">{isExpanded ? 'Ẩn chi phí' : 'Xem chi phí'} <ChevronDown size={15} aria-hidden="true" /></span></div></div>
       </button>
       <div className="row-actions ticket-actions"><button aria-label={`Chỉnh sửa ${concert.artist}`} onClick={onEdit}><Pencil size={16} /></button><button aria-label={`Xóa ${concert.artist}`} onClick={onDelete}><Trash2 size={16} /></button></div>
       <div className="ticket-code" aria-hidden="true">{Array.from({ length: 10 }, (_, index) => <span key={index} />)}</div>
@@ -289,7 +328,7 @@ function ConcertTicket({ concert, expenses, spent, isExpanded, onToggle, onAddEx
     {isExpanded && <section id={detailsId} className="concert-expenses-panel" role="region" aria-labelledby={titleId}>
       <div className="concert-expenses-header">
         <div><p className="section-kicker">CHI TIẾT CHI TIÊU</p><h3 id={titleId}>Chi phí của {concert.artist}</h3><span>{expenses.length} khoản chi · {concert.city}</span></div>
-        <div className="concert-expenses-summary"><strong>{formatMoney(spent)}</strong><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
+        <div className="concert-expenses-summary"><div><span>Dự tính <strong>{formatMoney(totals.planned)}</strong></span><span>Thực tế <strong>{formatMoney(totals.actual)}</strong></span></div><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
       </div>
       {expenses.length ? <div className="expense-table concert-expense-table">
         {expenses.map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={concert} onEdit={() => onEditExpense(expense)} onDelete={() => onDeleteExpense(expense)} />)}
@@ -301,7 +340,7 @@ function ConcertTicket({ concert, expenses, spent, isExpanded, onToggle, onAddEx
 function ExpenseRow({ expense, concert, onEdit, onDelete }: { expense: Expense; concert?: Concert; onEdit: () => void; onDelete: () => void }) {
   const Icon = expense.category === 'Di chuyển' ? TrainFront : expense.category === 'Ăn uống' ? Utensils : Ticket
   const iconClass = expense.category === 'Di chuyển' ? 'travel' : expense.category === 'Ăn uống' ? 'food' : 'ticket'
-  return <div className="expense-row"><div className={`expense-icon ${iconClass}`}><Icon size={19} aria-hidden="true" /></div><div className="expense-name"><strong>{expense.name}</strong><span>{concert ? `${concert.artist} · ${concert.city}` : 'Không gắn concert'}</span></div><span className="expense-category">{expense.category}</span><span className="expense-date">{formatExpenseDate(expense.date)}</span><strong className="expense-amount">− {formatMoney(expense.amount)}</strong><div className="row-actions"><button aria-label={`Chỉnh sửa ${expense.name}`} onClick={onEdit}><Pencil size={15} /></button><button aria-label={`Xóa ${expense.name}`} onClick={onDelete}><Trash2 size={15} /></button></div></div>
+  return <div className="expense-row"><div className={`expense-icon ${iconClass}`}><Icon size={19} aria-hidden="true" /></div><div className="expense-name"><strong>{expense.name}</strong><span>{concert ? `${concert.artist} · ${concert.city}` : 'Không gắn concert'}</span><small>{expense.peopleCount} người</small></div><span className="expense-category">{expense.category}</span><span className="expense-date">{formatExpenseDate(expense.date)}</span><div className="expense-costs"><span><small>Dự tính</small>{formatMoney(getPlannedTotal(expense))}</span><strong><small>Thực tế</small>− {formatMoney(getActualTotal(expense))}</strong></div><div className="row-actions"><button aria-label={`Chỉnh sửa ${expense.name}`} onClick={onEdit}><Pencil size={15} /></button><button aria-label={`Xóa ${expense.name}`} onClick={onDelete}><Trash2 size={15} /></button></div></div>
 }
 
 function useAccessibleModal(onClose: () => void) {
@@ -328,7 +367,9 @@ function useAccessibleModal(onClose: () => void) {
 
 function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { item?: Expense; initialConcertId?: string; concerts: Concert[]; onClose: () => void; onSave: (expense: Expense) => void }) {
   const [name, setName] = useState(item?.name ?? '')
-  const [amount, setAmount] = useState(String(item?.amount ?? 1_200_000))
+  const [plannedAmount, setPlannedAmount] = useState(String(item?.plannedAmount ?? 1_200_000))
+  const [actualAmount, setActualAmount] = useState(String(item?.actualAmount ?? 0))
+  const [peopleCount, setPeopleCount] = useState(String(item?.peopleCount ?? 1))
   const [category, setCategory] = useState<Category>(item?.category ?? 'Vé concert')
   const [concertId, setConcertId] = useState(item?.concertId ?? initialConcertId ?? concerts[0]?.id ?? '')
   const [date, setDate] = useState(item?.date ?? new Date().toISOString().slice(0, 10))
@@ -339,10 +380,13 @@ function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { i
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!name.trim()) { setError('Vui lòng nhập tên khoản chi'); return }
-    onSave({ id: item?.id ?? `expense-${Date.now()}`, name: name.trim(), amount: Number(amount) || 0, category, concertId, date })
+    onSave({ id: item?.id ?? `expense-${Date.now()}`, name: name.trim(), plannedAmount: Number(plannedAmount) || 0, actualAmount: Number(actualAmount) || 0, peopleCount: Number(peopleCount) || 1, category, concertId, date })
   }
 
-  return <ModalFrame title={isEditing ? 'Chỉnh sửa chi phí' : 'Thêm chi phí mới'} kicker="GHI LẠI KỶ NIỆM" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-field"><label className="required-label" htmlFor="expense-name">Tên khoản chi</label><input id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />{error && <span id="expense-error" className="field-error" role="alert">{error}</span>}</div><div className="form-row"><div className="form-field"><label htmlFor="expense-amount">Số tiền</label><div className="money-input"><input id="expense-amount" type="number" min="0" value={amount} onChange={(event) => setAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field"><label htmlFor="expense-category">Danh mục</label><select id="expense-category" value={category} onChange={(event) => setCategory(event.target.value as Category)}>{categories.map((value) => <option key={value}>{value}</option>)}</select></div></div><div className="form-row"><div className="form-field"><label htmlFor="expense-concert">Concert</label><select id="expense-concert" value={concertId} onChange={(event) => setConcertId(event.target.value)}>{concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></div><div className="form-field"><label htmlFor="expense-date">Ngày thanh toán</label><input id="expense-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu chi phí'} /></form></ModalFrame>
+  const plannedTotal = (Number(plannedAmount) || 0) * (Number(peopleCount) || 1)
+  const actualTotal = (Number(actualAmount) || 0) * (Number(peopleCount) || 1)
+
+  return <ModalFrame title={isEditing ? 'Chỉnh sửa chi phí' : 'Thêm chi phí mới'} kicker="GHI LẠI KỶ NIỆM" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-field"><label className="required-label" htmlFor="expense-name">Tên khoản chi</label><input id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />{error && <span id="expense-error" className="field-error" role="alert">{error}</span>}</div><div className="form-row expense-money-row"><div className="form-field"><label htmlFor="expense-planned-amount">Dự tính / người</label><div className="money-input"><input id="expense-planned-amount" type="number" min="0" value={plannedAmount} onChange={(event) => setPlannedAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field"><label htmlFor="expense-actual-amount">Thực tế / người</label><div className="money-input"><input id="expense-actual-amount" type="number" min="0" value={actualAmount} onChange={(event) => setActualAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field people-field"><label htmlFor="expense-people">Số người</label><select id="expense-people" value={peopleCount} onChange={(event) => setPeopleCount(event.target.value)}>{Array.from({ length: 20 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} người</option>)}</select></div></div><div className="expense-calculation" role="status" aria-label="Tổng chi phí đã tính" aria-live="polite"><div><span>Tổng dự tính</span><strong>{formatMoney(plannedTotal)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(actualTotal)}</strong></div></div><div className="form-row"><div className="form-field"><label htmlFor="expense-category">Danh mục</label><select id="expense-category" value={category} onChange={(event) => setCategory(event.target.value as Category)}>{categories.map((value) => <option key={value}>{value}</option>)}</select></div><div className="form-field"><label htmlFor="expense-concert">Concert</label><select id="expense-concert" value={concertId} onChange={(event) => setConcertId(event.target.value)}>{concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></div></div><div className="form-field"><label htmlFor="expense-date">Ngày thanh toán</label><input id="expense-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu chi phí'} /></form></ModalFrame>
 }
 
 function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () => void; onSave: (concert: Concert) => void }) {
