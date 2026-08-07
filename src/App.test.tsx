@@ -1,7 +1,14 @@
+/// <reference types="node" />
+
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+
+const styles = readFileSync(join(process.cwd(), 'src', 'styles.css'), 'utf8')
+const cssRule = (selector: string) => styles.split(`${selector} {`)[1]?.split('}')[0] ?? ''
 
 describe('Walking Through Concerts dashboard', () => {
   beforeEach(() => {
@@ -18,6 +25,15 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('TỔNG THỰC TẾ')).toBeInTheDocument()
     expect(screen.getByText('68.500.000 ₫')).toBeInTheDocument()
     expect(screen.getByText(/right here/i)).toBeInTheDocument()
+  })
+
+  it('keeps important concert and expense text large and consistent enough to read', () => {
+    expect(styles).not.toContain("font-family: Inter")
+    expect(cssRule('.ticket-meta')).toMatch(/font-size:\s*11px/)
+    expect(cssRule('.ticket-total small')).toMatch(/font-size:\s*9px/)
+    expect(cssRule('.expense-name strong')).toMatch(/font-size:\s*12px/)
+    expect(cssRule('.expense-name span')).toMatch(/font-size:\s*10px/)
+    expect(cssRule('.expense-costs > span, .expense-costs > strong')).toMatch(/font-size:\s*11px/)
   })
 
   it('uses the DV V-eri pet as the website brand logo', () => {
