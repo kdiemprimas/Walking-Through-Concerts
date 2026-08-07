@@ -27,6 +27,59 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('RIGHT HERE')).toBeInTheDocument()
   })
 
+  it('shows only the expenses that belong to the selected concert', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const seventeenToggle = screen.getByRole('button', { name: 'Xem chi phí SEVENTEEN' })
+    expect(seventeenToggle).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(seventeenToggle)
+
+    expect(seventeenToggle).toHaveAttribute('aria-expanded', 'true')
+    const seventeenExpenses = screen.getByRole('region', { name: 'Chi phí của SEVENTEEN' })
+    expect(within(seventeenExpenses).getByText('Vé VIP Soundcheck')).toBeInTheDocument()
+    expect(within(seventeenExpenses).getByText('Vé máy bay khứ hồi')).toBeInTheDocument()
+    expect(within(seventeenExpenses).getByText('Khách sạn Bangkok')).toBeInTheDocument()
+    expect(within(seventeenExpenses).queryByText('Vé CAT 1')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Xem chi phí DAY6' }))
+
+    expect(screen.queryByRole('region', { name: 'Chi phí của SEVENTEEN' })).not.toBeInTheDocument()
+    const day6Expenses = screen.getByRole('region', { name: 'Chi phí của DAY6' })
+    expect(within(day6Expenses).getByText('Vé CAT 1')).toBeInTheDocument()
+    expect(within(day6Expenses).queryByText('Vé VIP Soundcheck')).not.toBeInTheDocument()
+  })
+
+  it('opens a concert with the keyboard and preselects it when adding an expense', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const toggle = screen.getByRole('button', { name: 'Xem chi phí SEVENTEEN' })
+    toggle.focus()
+    await user.keyboard('{Enter}')
+
+    const details = screen.getByRole('region', { name: 'Chi phí của SEVENTEEN' })
+    await user.click(within(details).getByRole('button', { name: 'Thêm chi phí cho SEVENTEEN' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'Thêm chi phí mới' })
+    expect(within(dialog).getByLabelText('Concert')).toHaveValue('concert-1')
+  })
+
+  it('shows an empty expense state for a newly created concert', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /thêm concert/i }))
+    const dialog = screen.getByRole('dialog', { name: /thêm concert mới/i })
+    await user.type(within(dialog).getByLabelText('Nghệ sĩ'), 'IU')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu concert' }))
+    await user.click(screen.getByRole('button', { name: 'Xem chi phí IU' }))
+
+    const details = screen.getByRole('region', { name: 'Chi phí của IU' })
+    expect(within(details).getByText('Chưa có khoản chi nào cho concert này.')).toBeInTheDocument()
+  })
+
   it('adds an expense, updates the total and persists it', async () => {
     const user = userEvent.setup()
     const view = render(<App />)

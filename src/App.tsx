@@ -49,7 +49,7 @@ type Expense = {
 }
 
 type AppData = { concerts: Concert[]; expenses: Expense[] }
-type ModalState = { type: 'expense'; item?: Expense } | { type: 'concert'; item?: Concert } | null
+type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | null
 
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
 const BUDGET = 90_000_000
@@ -103,6 +103,7 @@ function App() {
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalState>(null)
+  const [expandedConcertId, setExpandedConcertId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
 
   useEffect(() => {
@@ -152,6 +153,7 @@ function App() {
   const deleteConcert = (concert: Concert) => {
     if (!window.confirm(`Xóa concert “${concert.artist}” và toàn bộ chi phí liên quan?`)) return
     setData((current) => ({ concerts: current.concerts.filter((item) => item.id !== concert.id), expenses: current.expenses.filter((expense) => expense.concertId !== concert.id) }))
+    setExpandedConcertId((current) => current === concert.id ? null : current)
     setAnnouncement('Đã xóa concert')
   }
 
@@ -217,7 +219,22 @@ function App() {
               </div>
             </div>
             <div className="concert-list" aria-live="polite">
-              {visibleConcerts.map((concert) => <ConcertTicket key={concert.id} concert={concert} spent={concertSpend[concert.id] ?? 0} onEdit={() => setModal({ type: 'concert', item: concert })} onDelete={() => deleteConcert(concert)} />)}
+              {visibleConcerts.map((concert) => {
+                const concertExpenses = data.expenses.filter((expense) => expense.concertId === concert.id)
+                return <ConcertTicket
+                  key={concert.id}
+                  concert={concert}
+                  expenses={concertExpenses}
+                  spent={concertSpend[concert.id] ?? 0}
+                  isExpanded={expandedConcertId === concert.id}
+                  onToggle={() => setExpandedConcertId((current) => current === concert.id ? null : concert.id)}
+                  onAddExpense={() => setModal({ type: 'expense', concertId: concert.id })}
+                  onEdit={() => setModal({ type: 'concert', item: concert })}
+                  onDelete={() => deleteConcert(concert)}
+                  onEditExpense={(expense) => setModal({ type: 'expense', item: expense })}
+                  onDeleteExpense={deleteExpense}
+                />
+              })}
               {!visibleConcerts.length && <div className="empty-state"><Sparkles size={22} /><strong>Chưa tìm thấy concert</strong><span>Thử từ khóa khác hoặc thêm một concert mới nhé.</span></div>}
             </div>
           </div>
@@ -241,7 +258,7 @@ function App() {
       </main>
 
       <MobileNav />
-      {modal?.type === 'expense' && <ExpenseModal key={modal.item?.id ?? 'new-expense'} item={modal.item} concerts={data.concerts} onClose={closeModal} onSave={saveExpense} />}
+      {modal?.type === 'expense' && <ExpenseModal key={modal.item?.id ?? `new-expense-${modal.concertId ?? 'general'}`} item={modal.item} initialConcertId={modal.concertId} concerts={data.concerts} onClose={closeModal} onSave={saveExpense} />}
       {modal?.type === 'concert' && <ConcertModal key={modal.item?.id ?? 'new-concert'} item={modal.item} onClose={closeModal} onSave={saveConcert} />}
       <div className={`toast ${announcement ? 'show' : ''}`} role="status" aria-live="polite"><Heart size={16} fill="currentColor" />{announcement}</div>
     </div>
@@ -256,8 +273,28 @@ function Topbar({ query, onQueryChange, onAddExpense, onAddConcert }: { query: s
   return <header className="topbar"><div className="mobile-brand"><span className="brand-mark">W/</span><b>CONCERTS</b></div><label className="search-box" htmlFor="site-search"><Search size={17} aria-hidden="true" /><span className="sr-only">Tìm kiếm</span><input id="site-search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Tìm concert, nghệ sĩ..." /><kbd>⌘ K</kbd></label><div className="topbar-actions"><button className="secondary-button" onClick={onAddConcert}><Ticket size={17} aria-hidden="true" /> Thêm concert</button><button className="add-button" onClick={onAddExpense}><Plus size={17} aria-hidden="true" /> Thêm chi phí</button></div></header>
 }
 
-function ConcertTicket({ concert, spent, onEdit, onDelete }: { concert: Concert; spent: number; onEdit: () => void; onDelete: () => void }) {
-  return <article className="concert-ticket" style={{ '--ticket-color': concert.color, '--ticket-accent': concert.accent } as CSSProperties}><div className="poster" aria-hidden="true"><span className="tape" /><div className="poster-orbit" /><span className="poster-city">{concert.city}</span><strong>{concert.artist}</strong><small>LIVE · {concert.date.slice(0, 4)}</small></div><div className="ticket-info"><div className="ticket-status"><span className={concert.status}>{concert.status === 'upcoming' ? 'SẮP TỚI' : 'ĐÃ ĐI'}</span><div className="row-actions"><button aria-label={`Chỉnh sửa ${concert.artist}`} onClick={onEdit}><Pencil size={16} /></button><button aria-label={`Xóa ${concert.artist}`} onClick={onDelete}><Trash2 size={16} /></button></div></div><p className="artist-name">{concert.artist}</p><h3>{concert.tour}</h3><div className="ticket-meta"><span><CalendarDays size={15} />{formatDate(concert.date)}</span><span><MapPin size={15} />{concert.venue}</span></div><div className="ticket-footer"><span>ĐÃ CHI</span><strong>{formatMoney(spent)}</strong><Heart size={15} fill="currentColor" aria-hidden="true" /></div></div><div className="ticket-code" aria-hidden="true">{Array.from({ length: 10 }, (_, index) => <span key={index} />)}</div></article>
+function ConcertTicket({ concert, expenses, spent, isExpanded, onToggle, onAddExpense, onEdit, onDelete, onEditExpense, onDeleteExpense }: { concert: Concert; expenses: Expense[]; spent: number; isExpanded: boolean; onToggle: () => void; onAddExpense: () => void; onEdit: () => void; onDelete: () => void; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
+  const detailsId = `concert-expenses-${concert.id}`
+  const titleId = `${detailsId}-title`
+  return <div className={`concert-entry ${isExpanded ? 'is-open' : ''}`}>
+    <article className="concert-ticket" style={{ '--ticket-color': concert.color, '--ticket-accent': concert.accent } as CSSProperties}>
+      <button type="button" className="concert-ticket-toggle" aria-label={`${isExpanded ? 'Ẩn' : 'Xem'} chi phí ${concert.artist}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={onToggle}>
+        <div className="poster" aria-hidden="true"><span className="tape" /><div className="poster-orbit" /><span className="poster-city">{concert.city}</span><strong>{concert.artist}</strong><small>LIVE · {concert.date.slice(0, 4)}</small></div>
+        <div className="ticket-info"><div className="ticket-status"><span className={concert.status}>{concert.status === 'upcoming' ? 'SẮP TỚI' : 'ĐÃ ĐI'}</span></div><p className="artist-name">{concert.artist}</p><h3>{concert.tour}</h3><div className="ticket-meta"><span><CalendarDays size={15} />{formatDate(concert.date)}</span><span><MapPin size={15} />{concert.venue}</span></div><div className="ticket-footer"><span>ĐÃ CHI</span><strong>{formatMoney(spent)}</strong><span className="ticket-details-hint">{isExpanded ? 'Ẩn chi phí' : 'Xem chi phí'} <ChevronDown size={15} aria-hidden="true" /></span></div></div>
+      </button>
+      <div className="row-actions ticket-actions"><button aria-label={`Chỉnh sửa ${concert.artist}`} onClick={onEdit}><Pencil size={16} /></button><button aria-label={`Xóa ${concert.artist}`} onClick={onDelete}><Trash2 size={16} /></button></div>
+      <div className="ticket-code" aria-hidden="true">{Array.from({ length: 10 }, (_, index) => <span key={index} />)}</div>
+    </article>
+    {isExpanded && <section id={detailsId} className="concert-expenses-panel" role="region" aria-labelledby={titleId}>
+      <div className="concert-expenses-header">
+        <div><p className="section-kicker">CHI TIẾT CHI TIÊU</p><h3 id={titleId}>Chi phí của {concert.artist}</h3><span>{expenses.length} khoản chi · {concert.city}</span></div>
+        <div className="concert-expenses-summary"><strong>{formatMoney(spent)}</strong><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
+      </div>
+      {expenses.length ? <div className="expense-table concert-expense-table">
+        {expenses.map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={concert} onEdit={() => onEditExpense(expense)} onDelete={() => onDeleteExpense(expense)} />)}
+      </div> : <div className="concert-expenses-empty"><ReceiptText size={20} aria-hidden="true" /><span>Chưa có khoản chi nào cho concert này.</span></div>}
+    </section>}
+  </div>
 }
 
 function ExpenseRow({ expense, concert, onEdit, onDelete }: { expense: Expense; concert?: Concert; onEdit: () => void; onDelete: () => void }) {
@@ -288,11 +325,11 @@ function useAccessibleModal(onClose: () => void) {
   return dialogRef
 }
 
-function ExpenseModal({ item, concerts, onClose, onSave }: { item?: Expense; concerts: Concert[]; onClose: () => void; onSave: (expense: Expense) => void }) {
+function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { item?: Expense; initialConcertId?: string; concerts: Concert[]; onClose: () => void; onSave: (expense: Expense) => void }) {
   const [name, setName] = useState(item?.name ?? '')
   const [amount, setAmount] = useState(String(item?.amount ?? 1_200_000))
   const [category, setCategory] = useState<Category>(item?.category ?? 'Vé concert')
-  const [concertId, setConcertId] = useState(item?.concertId ?? concerts[0]?.id ?? '')
+  const [concertId, setConcertId] = useState(item?.concertId ?? initialConcertId ?? concerts[0]?.id ?? '')
   const [date, setDate] = useState(item?.date ?? new Date().toISOString().slice(0, 10))
   const [error, setError] = useState('')
   const dialogRef = useAccessibleModal(onClose)
