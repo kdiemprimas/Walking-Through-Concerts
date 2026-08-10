@@ -25,7 +25,7 @@ import {
 
 type ConcertStatus = 'upcoming' | 'past'
 type Filter = 'all' | ConcertStatus
-type Category = 'Vé concert' | 'Di chuyển' | 'Lưu trú' | 'Ăn uống' | 'Merchandise' | 'Chuẩn bị' | 'Khác'
+type Category = 'Vé concert' | 'Di chuyển' | 'Lưu trú' | 'Ăn uống' | 'Merchandise' | 'Freebies' | 'Cá nhân' | 'Chuẩn bị' | 'Trang phục & làm đẹp' | 'Fan project' | 'Quà tặng' | 'Phí dịch vụ' | 'Bảo hiểm' | 'SIM & Internet' | 'Khác'
 
 type Concert = {
   id: string
@@ -44,6 +44,7 @@ type Expense = {
   name: string
   concertId: string
   category: Category
+  customCategory?: string
   plannedAmount: number
   actualAmount: number
   peopleCount: number
@@ -63,7 +64,7 @@ type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { ty
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
 const BUDGET = 90_000_000
 const PET_LOGO = `${import.meta.env.BASE_URL}dv-v-eri-logo.png`
-const categories: Category[] = ['Vé concert', 'Di chuyển', 'Lưu trú', 'Ăn uống', 'Merchandise', 'Chuẩn bị', 'Khác']
+const categories: Category[] = ['Vé concert', 'Di chuyển', 'Lưu trú', 'Ăn uống', 'Merchandise', 'Freebies', 'Cá nhân', 'Chuẩn bị', 'Trang phục & làm đẹp', 'Fan project', 'Quà tặng', 'Phí dịch vụ', 'Bảo hiểm', 'SIM & Internet', 'Khác']
 const pastelPairs = [
   ['#ffd1d9', '#7d3047'],
   ['#ffd8bd', '#7a3b24'],
@@ -101,6 +102,7 @@ const normalizeExpense = (expense: StoredExpense): Expense => {
     name: expense.name,
     concertId: expense.concertId,
     category: expense.category,
+    customCategory: typeof expense.customCategory === 'string' && expense.customCategory.trim() ? expense.customCategory.trim() : undefined,
     plannedAmount: Number.isFinite(expense.plannedAmount) ? Math.max(0, Number(expense.plannedAmount)) : legacyAmount,
     actualAmount: Number.isFinite(expense.actualAmount) ? Math.max(0, Number(expense.actualAmount)) : legacyAmount,
     peopleCount: Math.min(20, Math.max(1, Math.round(Number(expense.peopleCount) || 1))),
@@ -122,6 +124,7 @@ const loadData = (): AppData => {
 
 const getPlannedTotal = (expense: Expense) => expense.plannedAmount * expense.peopleCount
 const getActualTotal = (expense: Expense) => expense.actualAmount * expense.peopleCount
+const getCategoryLabel = (expense: Expense) => expense.category === 'Khác' && expense.customCategory ? expense.customCategory : expense.category
 
 const formatMoney = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
 const formatCompact = (value: number) => `${(value / 1_000_000).toFixed(value % 1_000_000 ? 1 : 0)}M`
@@ -152,11 +155,12 @@ function App() {
   })), [data])
   const breakdown = useMemo(() => {
     const getTotal = (matching: Category[]) => data.expenses.filter((expense) => matching.includes(expense.category)).reduce((sum, expense) => sum + getActualTotal(expense), 0)
+    const getOtherTotal = () => data.expenses.filter((expense) => !(['Vé concert', 'Di chuyển', 'Lưu trú'] as Category[]).includes(expense.category)).reduce((sum, expense) => sum + getActualTotal(expense), 0)
     return [
       { label: 'Vé concert', amount: getTotal(['Vé concert']), className: 'coral' },
       { label: 'Di chuyển', amount: getTotal(['Di chuyển']), className: 'rose' },
       { label: 'Lưu trú', amount: getTotal(['Lưu trú']), className: 'apricot' },
-      { label: 'Khác', amount: getTotal(['Ăn uống', 'Merchandise', 'Chuẩn bị', 'Khác']), className: 'berry' },
+      { label: 'Khác', amount: getOtherTotal(), className: 'berry' },
     ]
   }, [data.expenses])
 
@@ -340,7 +344,7 @@ function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddE
 function ExpenseRow({ expense, concert, onEdit, onDelete }: { expense: Expense; concert?: Concert; onEdit: () => void; onDelete: () => void }) {
   const Icon = expense.category === 'Di chuyển' ? TrainFront : expense.category === 'Ăn uống' ? Utensils : Ticket
   const iconClass = expense.category === 'Di chuyển' ? 'travel' : expense.category === 'Ăn uống' ? 'food' : 'ticket'
-  return <div className="expense-row"><div className={`expense-icon ${iconClass}`}><Icon size={19} aria-hidden="true" /></div><div className="expense-name"><strong>{expense.name}</strong><span>{concert ? `${concert.artist} · ${concert.city}` : 'Không gắn concert'}</span><small>{expense.peopleCount} người</small></div><span className="expense-category">{expense.category}</span><span className="expense-date">{formatExpenseDate(expense.date)}</span><div className="expense-costs"><span><small>Dự tính</small>{formatMoney(getPlannedTotal(expense))}</span><strong><small>Thực tế</small>− {formatMoney(getActualTotal(expense))}</strong></div><div className="row-actions"><button aria-label={`Chỉnh sửa ${expense.name}`} onClick={onEdit}><Pencil size={15} /></button><button aria-label={`Xóa ${expense.name}`} onClick={onDelete}><Trash2 size={15} /></button></div></div>
+  return <div className="expense-row"><div className={`expense-icon ${iconClass}`}><Icon size={19} aria-hidden="true" /></div><div className="expense-name"><strong>{expense.name}</strong><span>{concert ? `${concert.artist} · ${concert.city}` : 'Không gắn concert'}</span><small>{expense.peopleCount} người</small></div><span className="expense-category">{getCategoryLabel(expense)}</span><span className="expense-date">{formatExpenseDate(expense.date)}</span><div className="expense-costs"><span><small>Dự tính</small>{formatMoney(getPlannedTotal(expense))}</span><strong><small>Thực tế</small>− {formatMoney(getActualTotal(expense))}</strong></div><div className="row-actions"><button aria-label={`Chỉnh sửa ${expense.name}`} onClick={onEdit}><Pencil size={15} /></button><button aria-label={`Xóa ${expense.name}`} onClick={onDelete}><Trash2 size={15} /></button></div></div>
 }
 
 function useAccessibleModal(onClose: () => void) {
@@ -371,22 +375,25 @@ function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { i
   const [actualAmount, setActualAmount] = useState(String(item?.actualAmount ?? 0))
   const [peopleCount, setPeopleCount] = useState(String(item?.peopleCount ?? 1))
   const [category, setCategory] = useState<Category>(item?.category ?? 'Vé concert')
+  const [customCategory, setCustomCategory] = useState(item?.customCategory ?? '')
   const [concertId, setConcertId] = useState(item?.concertId ?? initialConcertId ?? concerts[0]?.id ?? '')
   const [date, setDate] = useState(item?.date ?? new Date().toISOString().slice(0, 10))
   const [error, setError] = useState('')
+  const [customCategoryError, setCustomCategoryError] = useState('')
   const dialogRef = useAccessibleModal(onClose)
   const isEditing = Boolean(item)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!name.trim()) { setError('Vui lòng nhập tên khoản chi'); return }
-    onSave({ id: item?.id ?? `expense-${Date.now()}`, name: name.trim(), plannedAmount: Number(plannedAmount) || 0, actualAmount: Number(actualAmount) || 0, peopleCount: Number(peopleCount) || 1, category, concertId, date })
+    if (category === 'Khác' && !customCategory.trim()) { setCustomCategoryError('Vui lòng nhập tên danh mục khác'); return }
+    onSave({ id: item?.id ?? `expense-${Date.now()}`, name: name.trim(), plannedAmount: Number(plannedAmount) || 0, actualAmount: Number(actualAmount) || 0, peopleCount: Number(peopleCount) || 1, category, customCategory: category === 'Khác' ? customCategory.trim() : undefined, concertId, date })
   }
 
   const plannedTotal = (Number(plannedAmount) || 0) * (Number(peopleCount) || 1)
   const actualTotal = (Number(actualAmount) || 0) * (Number(peopleCount) || 1)
 
-  return <ModalFrame title={isEditing ? 'Chỉnh sửa chi phí' : 'Thêm chi phí mới'} kicker="GHI LẠI KỶ NIỆM" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-field"><label className="required-label" htmlFor="expense-name">Tên khoản chi</label><input id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />{error && <span id="expense-error" className="field-error" role="alert">{error}</span>}</div><div className="form-row expense-money-row"><div className="form-field"><label htmlFor="expense-planned-amount">Dự tính / người</label><div className="money-input"><input id="expense-planned-amount" type="number" min="0" value={plannedAmount} onChange={(event) => setPlannedAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field"><label htmlFor="expense-actual-amount">Thực tế / người</label><div className="money-input"><input id="expense-actual-amount" type="number" min="0" value={actualAmount} onChange={(event) => setActualAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field people-field"><label htmlFor="expense-people">Số người</label><select id="expense-people" value={peopleCount} onChange={(event) => setPeopleCount(event.target.value)}>{Array.from({ length: 20 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} người</option>)}</select></div></div><div className="expense-calculation" role="status" aria-label="Tổng chi phí đã tính" aria-live="polite"><div><span>Tổng dự tính</span><strong>{formatMoney(plannedTotal)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(actualTotal)}</strong></div></div><div className="form-row"><div className="form-field"><label htmlFor="expense-category">Danh mục</label><select id="expense-category" value={category} onChange={(event) => setCategory(event.target.value as Category)}>{categories.map((value) => <option key={value}>{value}</option>)}</select></div><div className="form-field"><label htmlFor="expense-concert">Concert</label><select id="expense-concert" value={concertId} onChange={(event) => setConcertId(event.target.value)}>{concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></div></div><div className="form-field"><label htmlFor="expense-date">Ngày thanh toán</label><input id="expense-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu chi phí'} /></form></ModalFrame>
+  return <ModalFrame title={isEditing ? 'Chỉnh sửa chi phí' : 'Thêm chi phí mới'} kicker="GHI LẠI KỶ NIỆM" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-field"><label className="required-label" htmlFor="expense-name">Tên khoản chi</label><input id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />{error && <span id="expense-error" className="field-error" role="alert">{error}</span>}</div><div className="form-row expense-money-row"><div className="form-field"><label htmlFor="expense-planned-amount">Dự tính / người</label><div className="money-input"><input id="expense-planned-amount" type="number" min="0" value={plannedAmount} onChange={(event) => setPlannedAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field"><label htmlFor="expense-actual-amount">Thực tế / người</label><div className="money-input"><input id="expense-actual-amount" type="number" min="0" value={actualAmount} onChange={(event) => setActualAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field people-field"><label htmlFor="expense-people">Số người</label><select id="expense-people" value={peopleCount} onChange={(event) => setPeopleCount(event.target.value)}>{Array.from({ length: 20 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} người</option>)}</select></div></div><div className="expense-calculation" role="status" aria-label="Tổng chi phí đã tính" aria-live="polite"><div><span>Tổng dự tính</span><strong>{formatMoney(plannedTotal)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(actualTotal)}</strong></div></div><div className="form-row"><div className="form-field"><label htmlFor="expense-category">Danh mục</label><select id="expense-category" value={category} onChange={(event) => { setCategory(event.target.value as Category); setCustomCategoryError('') }}>{categories.map((value) => <option key={value}>{value}</option>)}</select></div><div className="form-field"><label htmlFor="expense-concert">Concert</label><select id="expense-concert" value={concertId} onChange={(event) => setConcertId(event.target.value)}>{concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></div></div>{category === 'Khác' && <div className="form-field custom-category-field"><label className="required-label" htmlFor="expense-custom-category">Tên danh mục khác</label><input id="expense-custom-category" value={customCategory} onChange={(event) => { setCustomCategory(event.target.value); setCustomCategoryError('') }} placeholder="Ví dụ: Phí đổi vé, gửi hành lý..." aria-required="true" aria-invalid={Boolean(customCategoryError)} aria-describedby={customCategoryError ? 'custom-category-error' : undefined} />{customCategoryError && <span id="custom-category-error" className="field-error" role="alert">{customCategoryError}</span>}</div>}<div className="form-field"><label htmlFor="expense-date">Ngày thanh toán</label><input id="expense-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu chi phí'} /></form></ModalFrame>
 }
 
 function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () => void; onSave: (concert: Concert) => void }) {

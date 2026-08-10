@@ -126,6 +126,50 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('Taxi về khách sạn')).toBeInTheDocument()
   })
 
+  it('offers more concert expense categories and saves a predefined choice', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: /thêm chi phí/i }))
+    const dialog = screen.getByRole('dialog', { name: /thêm chi phí mới/i })
+    const category = within(dialog).getByLabelText('Danh mục')
+
+    expect(within(category).getByRole('option', { name: 'Freebies' })).toBeInTheDocument()
+    expect(within(category).getByRole('option', { name: 'Cá nhân' })).toBeInTheDocument()
+    expect(within(category).getByRole('option', { name: 'Fan project' })).toBeInTheDocument()
+
+    await user.type(within(dialog).getByLabelText('Tên khoản chi'), 'Quà freebies')
+    await user.selectOptions(category, 'Freebies')
+    expect(within(dialog).queryByLabelText('Tên danh mục khác')).not.toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
+    expect(screen.getByText('Freebies')).toBeInTheDocument()
+  })
+
+  it('requires, displays and persists a custom category when selecting Khác', async () => {
+    const user = userEvent.setup()
+    const view = render(<App />)
+    await user.click(screen.getByRole('button', { name: /thêm chi phí/i }))
+    const dialog = screen.getByRole('dialog', { name: /thêm chi phí mới/i })
+    await user.type(within(dialog).getByLabelText('Tên khoản chi'), 'Phí đổi vé')
+    await user.selectOptions(within(dialog).getByLabelText('Danh mục'), 'Khác')
+
+    const customCategory = within(dialog).getByLabelText('Tên danh mục khác')
+    expect(customCategory).toHaveAttribute('aria-required', 'true')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Vui lòng nhập tên danh mục khác')
+
+    await user.type(customCategory, 'Phí phát sinh')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
+    expect(screen.getByText('Phí phát sinh')).toBeInTheDocument()
+
+    view.unmount()
+    render(<App />)
+    expect(screen.getByText('Phí phát sinh')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa Phí đổi vé' }))
+    const editDialog = screen.getByRole('dialog', { name: /chỉnh sửa chi phí/i })
+    expect(within(editDialog).getByLabelText('Danh mục')).toHaveValue('Khác')
+    expect(within(editDialog).getByLabelText('Tên danh mục khác')).toHaveValue('Phí phát sinh')
+  })
+
   it('multiplies planned and actual amounts by the selected number of people', async () => {
     const user = userEvent.setup()
     render(<App />)
