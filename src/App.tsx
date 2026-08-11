@@ -4,6 +4,8 @@ import {
   BarChart3,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleUserRound,
   Clock3,
   Heart,
@@ -63,6 +65,7 @@ type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { ty
 
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
 const BUDGET = 90_000_000
+const EXPENSES_PER_PAGE = 4
 const PET_LOGO = `${import.meta.env.BASE_URL}dv-v-eri-logo.png`
 const categories: Category[] = ['Vé concert', 'Di chuyển', 'Lưu trú', 'Ăn uống', 'Merchandise', 'Freebies', 'Cá nhân', 'Chuẩn bị', 'Trang phục & làm đẹp', 'Fan project', 'Quà tặng', 'Phí dịch vụ', 'Bảo hiểm', 'SIM & Internet', 'Khác']
 const pastelPairs = [
@@ -131,6 +134,14 @@ const formatCompact = (value: number) => `${(value / 1_000_000).toFixed(value % 
 const formatDate = (value: string) => value.split('-').reverse().join('.')
 const formatExpenseDate = (value: string) => new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: 'short' }).format(new Date(`${value}T00:00:00`))
 
+function usePagination(itemCount: number, pageSize = EXPENSES_PER_PAGE) {
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(itemCount / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const startIndex = (currentPage - 1) * pageSize
+  return { currentPage, totalPages, startIndex, endIndex: startIndex + pageSize, setPage }
+}
+
 function App() {
   const [data, setData] = useState<AppData>(loadData)
   const [filter, setFilter] = useState<Filter>('all')
@@ -138,6 +149,7 @@ function App() {
   const [modal, setModal] = useState<ModalState>(null)
   const [expandedConcertId, setExpandedConcertId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
+  const recentPagination = usePagination(data.expenses.length)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -296,8 +308,9 @@ function App() {
         <section className="recent-section" id="expenses" aria-labelledby="recent-title">
           <div className="section-heading"><div><p className="section-kicker">MỚI NHẤT</p><h2 id="recent-title">Chi phí gần đây</h2></div><button className="text-button" onClick={() => setModal({ type: 'expense' })}><Plus size={15} /> Thêm khoản chi</button></div>
           <div className="expense-table">
-            {data.expenses.slice(0, 6).map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={data.concerts.find((concert) => concert.id === expense.concertId)} onEdit={() => setModal({ type: 'expense', item: expense })} onDelete={() => deleteExpense(expense)} />)}
+            {data.expenses.slice(recentPagination.startIndex, recentPagination.endIndex).map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={data.concerts.find((concert) => concert.id === expense.concertId)} onEdit={() => setModal({ type: 'expense', item: expense })} onDelete={() => deleteExpense(expense)} />)}
           </div>
+          <TablePagination label="Chi phí gần đây" itemCount={data.expenses.length} pagination={recentPagination} />
         </section>
       </main>
 
@@ -320,6 +333,7 @@ function Topbar({ query, onQueryChange, onAddExpense, onAddConcert }: { query: s
 function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddExpense, onEdit, onDelete, onEditExpense, onDeleteExpense }: { concert: Concert; expenses: Expense[]; totals: { planned: number; actual: number }; isExpanded: boolean; onToggle: () => void; onAddExpense: () => void; onEdit: () => void; onDelete: () => void; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
   const detailsId = `concert-expenses-${concert.id}`
   const titleId = `${detailsId}-title`
+  const pagination = usePagination(expenses.length)
   return <div className={`concert-entry ${isExpanded ? 'is-open' : ''}`}>
     <article className="concert-ticket" style={{ '--ticket-color': concert.color, '--ticket-accent': concert.accent } as CSSProperties}>
       <button type="button" className="concert-ticket-toggle" aria-label={`${isExpanded ? 'Ẩn' : 'Xem'} chi phí ${concert.artist}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={onToggle}>
@@ -335,10 +349,27 @@ function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddE
         <div className="concert-expenses-summary"><div><span>Dự tính <strong>{formatMoney(totals.planned)}</strong></span><span>Thực tế <strong>{formatMoney(totals.actual)}</strong></span></div><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
       </div>
       {expenses.length ? <div className="expense-table concert-expense-table">
-        {expenses.map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={concert} onEdit={() => onEditExpense(expense)} onDelete={() => onDeleteExpense(expense)} />)}
+        {expenses.slice(pagination.startIndex, pagination.endIndex).map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={concert} onEdit={() => onEditExpense(expense)} onDelete={() => onDeleteExpense(expense)} />)}
       </div> : <div className="concert-expenses-empty"><ReceiptText size={20} aria-hidden="true" /><span>Chưa có khoản chi nào cho concert này.</span></div>}
+      {expenses.length > 0 && <TablePagination label={`Chi phí ${concert.artist}`} itemCount={expenses.length} pagination={pagination} />}
     </section>}
   </div>
+}
+
+function TablePagination({ label, itemCount, pagination }: { label: string; itemCount: number; pagination: ReturnType<typeof usePagination> }) {
+  const { currentPage, totalPages, startIndex, endIndex, setPage } = pagination
+  if (totalPages <= 1) return null
+  const firstItem = startIndex + 1
+  const lastItem = Math.min(endIndex, itemCount)
+
+  return <nav className="table-pagination" aria-label={`Phân trang ${label}`}>
+    <span className="pagination-summary">Hiển thị {firstItem}–{lastItem} / {itemCount}</span>
+    <div className="pagination-controls">
+      <button type="button" aria-label={`Trang trước của ${label}`} disabled={currentPage === 1} onClick={() => setPage((page) => Math.max(1, page - 1))}><ChevronLeft size={16} aria-hidden="true" /></button>
+      <span className="pagination-page" aria-live="polite" aria-atomic="true">Trang {currentPage} / {totalPages}</span>
+      <button type="button" aria-label={`Trang sau của ${label}`} disabled={currentPage === totalPages} onClick={() => setPage((page) => Math.min(totalPages, page + 1))}><ChevronRight size={16} aria-hidden="true" /></button>
+    </div>
+  </nav>
 }
 
 function ExpenseRow({ expense, concert, onEdit, onDelete }: { expense: Expense; concert?: Concert; onEdit: () => void; onDelete: () => void }) {

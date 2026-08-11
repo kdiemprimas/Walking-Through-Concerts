@@ -184,6 +184,14 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 .expense-costs > span, .expense-costs > strong { display: grid; grid-template-columns: auto auto; justify-content: end; gap: 8px; font-size: 11px; font-variant-numeric: tabular-nums; }
 .expense-costs small { color: var(--muted); font-size: 9px; font-weight: 600; }
 .expense-costs strong { color: var(--accent-strong); }
+.table-pagination { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0 0; color: var(--muted); }
+.pagination-summary { font-size: 10px; font-weight: 600; }
+.pagination-controls { display: flex; align-items: center; gap: 7px; }
+.pagination-controls button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); color: var(--accent-strong); transition: background .16s, border-color .16s; }
+.pagination-controls button:hover:not(:disabled) { background: var(--surface-pink); border-color: #c9adb3; }
+.pagination-controls button:disabled { cursor: not-allowed; opacity: .42; }
+.pagination-page { min-width: 82px; text-align: center; color: var(--ink); font-size: 11px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.concert-expenses-panel .table-pagination { margin: 0 18px 12px; padding-top: 10px; border-top: 1px solid var(--border); }
 
 .modal-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: rgba(59,45,50,.38); backdrop-filter: blur(5px); animation: fadeIn .18s ease-out; }
 .modal { width: min(620px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--paper); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-float); padding: 25px; animation: modalIn .22s ease-out; }
@@ -227,6 +235,7 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
   .section-heading { align-items: start; }.filter-tabs button { padding-inline: 7px; }
   .concert-ticket { min-height: 148px; grid-template-columns: 82px 1fr 15px; }.concert-ticket-toggle { grid-template-columns: 82px minmax(0, 1fr); }.poster-orbit { right: 7px; }.ticket-info { padding-right: 61px; }.ticket-info h3 { font-size: 15px; }.ticket-meta span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 145px; }.ticket-footer { gap: 6px; }.row-actions button { width: 27px; height: 27px; }.ticket-actions { right: 23px; }.ticket-details-hint { display: none; }.concert-expenses-panel { margin-inline: 8px; }.concert-expenses-header { display: grid; gap: 12px; padding: 17px 14px 13px; }.concert-expenses-summary { display: flex; justify-content: space-between; align-items: center; text-align: left; }.concert-expense-table { padding-inline: 12px; }
   .expense-row, .concert-expense-table .expense-row { grid-template-columns: 31px 1fr 57px; gap: 9px; }.expense-costs { grid-column: 2 / -1; grid-row: 2; display: flex; justify-content: space-between; padding: 8px 0 2px; border-top: 1px dashed var(--line); text-align: left; }.expense-costs > span, .expense-costs > strong { justify-content: start; }
+  .table-pagination { min-height: 50px; }.pagination-summary { display: none; }.pagination-controls { width: 100%; justify-content: space-between; }.concert-expenses-panel .table-pagination { margin-inline: 12px; }
   .form-row, .expense-money-row { grid-template-columns: 1fr; }.expense-calculation { grid-template-columns: 1fr; }.modal { padding: 20px; }.modal-actions { display: grid; grid-template-columns: 1fr 1fr; }.modal-actions button { justify-content: center; }
 }
 

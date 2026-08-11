@@ -106,6 +106,60 @@ describe('Walking Through Concerts dashboard', () => {
     expect(within(day6Expenses).queryByText('Vé VIP Soundcheck')).not.toBeInTheDocument()
   })
 
+  it('paginates the recent expense table four items at a time', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const recentExpenses = screen.getByRole('region', { name: 'Chi phí gần đây' })
+    expect(within(recentExpenses).getByText('Trang 1 / 3')).toBeInTheDocument()
+    expect(within(recentExpenses).getByText('Vé VIP Soundcheck')).toBeInTheDocument()
+    expect(within(recentExpenses).queryByText('Vé concert Seoul')).not.toBeInTheDocument()
+    expect(within(recentExpenses).getByRole('button', { name: 'Trang trước của Chi phí gần đây' })).toBeDisabled()
+
+    await user.click(within(recentExpenses).getByRole('button', { name: 'Trang sau của Chi phí gần đây' }))
+
+    expect(within(recentExpenses).getByText('Trang 2 / 3')).toBeInTheDocument()
+    expect(within(recentExpenses).getByText('Vé concert Seoul')).toBeInTheDocument()
+    expect(within(recentExpenses).queryByText('Vé VIP Soundcheck')).not.toBeInTheDocument()
+  })
+
+  it('keeps pagination independent for each concert expense table', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Xem chi phí KANGDANIEL' }))
+    const concertExpenses = screen.getByRole('region', { name: 'Chi phí của KANGDANIEL' })
+    expect(within(concertExpenses).getByText('Trang 1 / 2')).toBeInTheDocument()
+    expect(within(concertExpenses).getByText('Ăn tối sau concert')).toBeInTheDocument()
+    expect(within(concertExpenses).queryByText('Merchandise')).not.toBeInTheDocument()
+
+    await user.click(within(concertExpenses).getByRole('button', { name: 'Trang sau của Chi phí KANGDANIEL' }))
+
+    expect(within(concertExpenses).getByText('Trang 2 / 2')).toBeInTheDocument()
+    expect(within(concertExpenses).getByText('Merchandise', { selector: 'strong' })).toBeInTheDocument()
+    expect(within(concertExpenses).queryByText('Ăn tối sau concert')).not.toBeInTheDocument()
+    expect(within(concertExpenses).getByRole('button', { name: 'Trang sau của Chi phí KANGDANIEL' })).toBeDisabled()
+  })
+
+  it('returns to a valid page when deleting the only item on the last page', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    localStorage.setItem('walking-through-concerts-data-v2', JSON.stringify({
+      concerts: [{ id: 'concert-page', artist: 'TEST', tour: 'PAGING', city: 'Hà Nội', date: '2026-10-10', venue: 'Stadium', status: 'upcoming', color: '#f5e9eb', accent: '#8c5261' }],
+      expenses: Array.from({ length: 5 }, (_, index) => ({ id: `expense-page-${index + 1}`, name: `Khoản chi ${index + 1}`, concertId: 'concert-page', category: 'Cá nhân', plannedAmount: 100_000, actualAmount: 90_000, peopleCount: 1, date: '2026-08-01' })),
+    }))
+    render(<App />)
+
+    const recentExpenses = screen.getByRole('region', { name: 'Chi phí gần đây' })
+    await user.click(within(recentExpenses).getByRole('button', { name: 'Trang sau của Chi phí gần đây' }))
+    expect(within(recentExpenses).getByText('Khoản chi 5')).toBeInTheDocument()
+
+    await user.click(within(recentExpenses).getByRole('button', { name: 'Xóa Khoản chi 5' }))
+
+    expect(within(recentExpenses).getByText('Khoản chi 1')).toBeInTheDocument()
+    expect(within(recentExpenses).queryByRole('navigation', { name: 'Phân trang Chi phí gần đây' })).not.toBeInTheDocument()
+  })
+
   it('opens a concert with the keyboard and preselects it when adding an expense', async () => {
     const user = userEvent.setup()
     render(<App />)
