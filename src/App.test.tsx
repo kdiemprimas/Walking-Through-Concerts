@@ -9,6 +9,20 @@ import App from './App'
 
 const styles = readFileSync(join(process.cwd(), 'src', 'styles.css'), 'utf8')
 const cssRule = (selector: string) => styles.split(`${selector} {`)[1]?.split('}')[0] ?? ''
+const cssColor = (name: string) => styles.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, 'i'))?.[1] ?? ''
+
+const contrastRatio = (foreground: string, background: string) => {
+  const luminance = (hex: string) => {
+    const channels = hex.match(/[0-9a-f]{2}/gi)?.map((channel) => Number.parseInt(channel, 16) / 255) ?? []
+    const [red, green, blue] = channels.map((channel) =>
+      channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+    )
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+  }
+
+  const [light, dark] = [luminance(foreground), luminance(background)].sort((a, b) => b - a)
+  return (light + 0.05) / (dark + 0.05)
+}
 
 describe('Walking Through Concerts dashboard', () => {
   beforeEach(() => {
@@ -34,6 +48,21 @@ describe('Walking Through Concerts dashboard', () => {
     expect(cssRule('.expense-name strong')).toMatch(/font-size:\s*12px/)
     expect(cssRule('.expense-name span')).toMatch(/font-size:\s*10px/)
     expect(cssRule('.expense-costs > span, .expense-costs > strong')).toMatch(/font-size:\s*11px/)
+  })
+
+  it('uses a calm pastel palette with subtle borders and elevation', () => {
+    expect(cssColor('canvas')).toBe('#fbf9f7')
+    expect(cssColor('surface')).toBe('#fffdfb')
+    expect(cssColor('border')).toBe('#e6dcd8')
+    expect(cssColor('accent')).toBe('#d99a8e')
+    expect(styles).not.toContain('#ff846d')
+    expect(cssRule('.stat-card')).toMatch(/box-shadow:\s*var\(--shadow-soft\)/)
+    expect(cssRule('.modal')).toMatch(/box-shadow:\s*var\(--shadow-float\)/)
+  })
+
+  it('keeps primary and muted text readable on the pale surface', () => {
+    expect(contrastRatio(cssColor('ink'), cssColor('surface'))).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(cssColor('muted'), cssColor('surface'))).toBeGreaterThanOrEqual(4.5)
   })
 
   it('uses the DV V-eri pet as the website brand logo', () => {
