@@ -33,11 +33,11 @@ describe('Walking Through Concerts dashboard', () => {
   it('shows the key concert and budget summary', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: /xin chào, diễm/i })).toBeInTheDocument()
-    expect(screen.getByText('3 concerts')).toBeInTheDocument()
+    expect(screen.getByText('2 concerts')).toBeInTheDocument()
     expect(screen.getByText('TỔNG DỰ TÍNH')).toBeInTheDocument()
-    expect(screen.getByText('69.500.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('26.500.000 ₫')).toBeInTheDocument()
     expect(screen.getByText('TỔNG THỰC TẾ')).toBeInTheDocument()
-    expect(screen.getByText('68.500.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('24.850.000 ₫')).toBeInTheDocument()
     expect(screen.getByText(/right here/i)).toBeInTheDocument()
   })
 
@@ -49,8 +49,8 @@ describe('Walking Through Concerts dashboard', () => {
     const report = screen.getByRole('dialog', { name: 'Báo cáo chi tiết' })
     expect(within(report).getByText('Tổng theo danh mục')).toBeInTheDocument()
     expect(within(report).getByText('Tổng theo concert')).toBeInTheDocument()
-    expect(within(report).getByText('KANGDANIEL')).toBeInTheDocument()
-    expect(within(report).getByText('68.500.000 ₫')).toBeInTheDocument()
+    expect(within(report).queryByText('KANGDANIEL')).not.toBeInTheDocument()
+    expect(within(report).getByText('24.850.000 ₫')).toBeInTheDocument()
 
     await user.click(within(report).getByRole('button', { name: 'Đóng' }))
     await user.click(screen.getByRole('button', { name: 'Báo cáo' }))
@@ -94,6 +94,29 @@ describe('Walking Through Concerts dashboard', () => {
     expect(within(settings).getByRole('alert')).toHaveTextContent('Ngân sách phải lớn hơn 0')
   })
 
+  it('filters the entire dashboard and detailed report by year', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const yearPicker = screen.getByLabelText('Chọn năm')
+
+    expect(yearPicker).toHaveValue('2026')
+    expect(within(yearPicker).getByRole('option', { name: 'Tất cả năm' })).toBeInTheDocument()
+    expect(within(yearPicker).getByRole('option', { name: 'Năm 2025' })).toBeInTheDocument()
+    await user.selectOptions(yearPicker, '2025')
+
+    expect(screen.getByText('FOLLOW AGAIN')).toBeInTheDocument()
+    expect(screen.queryByText('RIGHT HERE')).not.toBeInTheDocument()
+    const summary = screen.getByRole('region', { name: 'Tổng quan chi tiêu' })
+    expect(within(summary).getByText('43.000.000 ₫')).toBeInTheDocument()
+    expect(within(summary).getByText('43.650.000 ₫')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Chi phí gần đây' })).getByText('5 / 5 khoản chi')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Xem báo cáo chi tiết' }))
+    const report = screen.getByRole('dialog', { name: 'Báo cáo chi tiết' })
+    expect(within(report).getByText('KANGDANIEL')).toBeInTheDocument()
+    expect(within(report).queryByText('SEVENTEEN')).not.toBeInTheDocument()
+  })
+
   it('keeps important concert and expense text large and consistent enough to read', () => {
     expect(styles).not.toContain("font-family: Inter")
     expect(cssRule('.ticket-meta')).toMatch(/font-size:\s*11px/)
@@ -128,6 +151,7 @@ describe('Walking Through Concerts dashboard', () => {
   it('switches between concert filters', async () => {
     const user = userEvent.setup()
     render(<App />)
+    await user.selectOptions(screen.getByLabelText('Chọn năm'), 'all')
     await user.click(screen.getByRole('button', { name: 'Đã đi' }))
     expect(screen.getByText('FOLLOW AGAIN')).toBeInTheDocument()
     expect(screen.queryByText('RIGHT HERE')).not.toBeInTheDocument()
@@ -180,6 +204,7 @@ describe('Walking Through Concerts dashboard', () => {
   it('paginates the recent expense table four items at a time', async () => {
     const user = userEvent.setup()
     render(<App />)
+    await user.selectOptions(screen.getByLabelText('Chọn năm'), 'all')
 
     const recentExpenses = screen.getByRole('region', { name: 'Chi phí gần đây' })
     expect(within(recentExpenses).getByText('Trang 1 / 3')).toBeInTheDocument()
@@ -197,6 +222,7 @@ describe('Walking Through Concerts dashboard', () => {
   it('filters recent expenses by name, concert and category, then sorts an amount column', async () => {
     const user = userEvent.setup()
     render(<App />)
+    await user.selectOptions(screen.getByLabelText('Chọn năm'), 'all')
     const recentExpenses = screen.getByRole('region', { name: 'Chi phí gần đây' })
 
     await user.selectOptions(within(recentExpenses).getByLabelText('Lọc theo concert'), 'concert-2')
@@ -222,6 +248,7 @@ describe('Walking Through Concerts dashboard', () => {
     const user = userEvent.setup()
     render(<App />)
 
+    await user.selectOptions(screen.getByLabelText('Chọn năm'), 'all')
     await user.click(screen.getByRole('button', { name: 'Tất cả' }))
     await user.click(screen.getByRole('button', { name: 'Xem chi phí KANGDANIEL' }))
     const concertExpenses = screen.getByRole('region', { name: 'Chi phí của KANGDANIEL' })
@@ -297,8 +324,8 @@ describe('Walking Through Concerts dashboard', () => {
     await user.type(within(dialog).getByLabelText('Thực tế / người'), '500000')
     await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
     expect(screen.getByText('Taxi về khách sạn')).toBeInTheDocument()
-    expect(screen.getByText('70.100.000 ₫')).toBeInTheDocument()
-    expect(screen.getByText('69.000.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('27.100.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('25.350.000 ₫')).toBeInTheDocument()
 
     view.unmount()
     render(<App />)
@@ -366,8 +393,8 @@ describe('Walking Through Concerts dashboard', () => {
     expect(within(calculation).getByText('3.600.000 ₫')).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
-    expect(screen.getByText('72.500.000 ₫')).toBeInTheDocument()
-    expect(screen.getByText('72.100.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('29.500.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('28.450.000 ₫')).toBeInTheDocument()
     expect(screen.getByText('3 người')).toBeInTheDocument()
   })
 
@@ -380,7 +407,7 @@ describe('Walking Through Concerts dashboard', () => {
     await user.clear(amount)
     await user.type(amount, '8000000')
     await user.click(within(dialog).getByRole('button', { name: 'Lưu thay đổi' }))
-    expect(screen.getByText('68.650.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('25.000.000 ₫')).toBeInTheDocument()
   })
 
   it('migrates a saved legacy amount to planned and actual values for one person', async () => {
@@ -456,7 +483,7 @@ describe('Walking Through Concerts dashboard', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Xóa Vé VIP Soundcheck' }))
     expect(screen.queryByText('Vé VIP Soundcheck')).not.toBeInTheDocument()
-    expect(screen.getByText('60.650.000 ₫')).toBeInTheDocument()
+    expect(screen.getByText('17.000.000 ₫')).toBeInTheDocument()
   })
 
   it('keeps an expense when deletion is cancelled', async () => {
@@ -473,7 +500,7 @@ describe('Walking Through Concerts dashboard', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Xóa SEVENTEEN' }))
     expect(screen.queryByText('RIGHT HERE')).not.toBeInTheDocument()
-    expect(screen.getByText('53.070.000 ₫')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Tổng quan chi tiêu' })).getByText('9.420.000 ₫')).toBeInTheDocument()
   })
 
   it('filters concerts with search and shows an empty state', async () => {
@@ -486,7 +513,7 @@ describe('Walking Through Concerts dashboard', () => {
   it('falls back to sample data when saved data is invalid', () => {
     localStorage.setItem('walking-through-concerts-data-v2', '{invalid')
     render(<App />)
-    expect(screen.getByText('3 concerts')).toBeInTheDocument()
+    expect(screen.getByText('2 concerts')).toBeInTheDocument()
   })
 
   it('opens the expense form from the recent expenses section', async () => {

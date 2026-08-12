@@ -70,6 +70,7 @@ type StoredData = { concerts: Concert[]; expenses: StoredExpense[] }
 type AppPreferences = { displayName: string; tagline: string; budget: number }
 type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | { type: 'report' } | { type: 'settings' } | null
 type ExpenseSort = 'recent-added' | 'date-desc' | 'date-asc' | 'planned-desc' | 'actual-desc'
+type YearFilter = number | 'all'
 
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
 const PREFERENCES_KEY = 'walking-through-concerts-preferences-v1'
@@ -171,6 +172,12 @@ const formatMoney = (value: number) => `${new Intl.NumberFormat('vi-VN').format(
 const formatCompact = (value: number) => `${(value / 1_000_000).toFixed(value % 1_000_000 ? 1 : 0)}M`
 const formatDate = (value: string) => value.split('-').reverse().join('.')
 const formatExpenseDate = (value: string) => new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: 'short' }).format(new Date(`${value}T00:00:00`))
+const getConcertYear = (concert: Concert) => Number(concert.date.slice(0, 4))
+const getDefaultYear = (concerts: Concert[]): YearFilter => {
+  const years = [...new Set(concerts.map(getConcertYear).filter(Number.isFinite))].sort((first, second) => second - first)
+  const currentYear = new Date().getFullYear()
+  return years.includes(currentYear) ? currentYear : years[0] ?? 'all'
+}
 
 function usePagination(itemCount: number, pageSize = EXPENSES_PER_PAGE) {
   const [page, setPage] = useState(1)
@@ -183,6 +190,7 @@ function usePagination(itemCount: number, pageSize = EXPENSES_PER_PAGE) {
 function App() {
   const [data, setData] = useState<AppData>(loadData)
   const [preferences, setPreferences] = useState<AppPreferences>(loadPreferences)
+  const [selectedYear, setSelectedYear] = useState<YearFilter>(() => getDefaultYear(data.concerts))
   const [filter, setFilter] = useState<Filter>('upcoming')
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalState>(null)
@@ -202,27 +210,32 @@ function App() {
   }, [preferences])
 
   const closeModal = useCallback(() => setModal(null), [])
-  const totalPlanned = useMemo(() => data.expenses.reduce((sum, expense) => sum + getPlannedTotal(expense), 0), [data.expenses])
-  const totalActual = useMemo(() => data.expenses.reduce((sum, expense) => sum + getActualTotal(expense), 0), [data.expenses])
-  const concertTotals = useMemo(() => Object.fromEntries(data.concerts.map((concert) => {
-    const expenses = data.expenses.filter((expense) => expense.concertId === concert.id)
+  const availableYears = useMemo(() => [...new Set(data.concerts.map(getConcertYear).filter(Number.isFinite))].sort((first, second) => second - first), [data.concerts])
+  const yearConcerts = useMemo(() => selectedYear === 'all' ? data.concerts : data.concerts.filter((concert) => getConcertYear(concert) === selectedYear), [data.concerts, selectedYear])
+  const yearConcertIds = useMemo(() => new Set(yearConcerts.map((concert) => concert.id)), [yearConcerts])
+  const yearExpenses = useMemo(() => data.expenses.filter((expense) => yearConcertIds.has(expense.concertId)), [data.expenses, yearConcertIds])
+
+  const totalPlanned = useMemo(() => yearExpenses.reduce((sum, expense) => sum + getPlannedTotal(expense), 0), [yearExpenses])
+  const totalActual = useMemo(() => yearExpenses.reduce((sum, expense) => sum + getActualTotal(expense), 0), [yearExpenses])
+  const concertTotals = useMemo(() => Object.fromEntries(yearConcerts.map((concert) => {
+    const expenses = yearExpenses.filter((expense) => expense.concertId === concert.id)
     return [concert.id, {
       planned: expenses.reduce((sum, expense) => sum + getPlannedTotal(expense), 0),
       actual: expenses.reduce((sum, expense) => sum + getActualTotal(expense), 0),
     }]
-  })), [data])
+  })), [yearConcerts, yearExpenses])
   const breakdown = useMemo(() => {
-    const getTotal = (matching: Category[]) => data.expenses.filter((expense) => matching.includes(expense.category)).reduce((sum, expense) => sum + getActualTotal(expense), 0)
-    const getOtherTotal = () => data.expenses.filter((expense) => !(['Vé concert', 'Di chuyển', 'Lưu trú'] as Category[]).includes(expense.category)).reduce((sum, expense) => sum + getActualTotal(expense), 0)
+    const getTotal = (matching: Category[]) => yearExpenses.filter((expense) => matching.includes(expense.category)).reduce((sum, expense) => sum + getActualTotal(expense), 0)
+    const getOtherTotal = () => yearExpenses.filter((expense) => !(['Vé concert', 'Di chuyển', 'Lưu trú'] as Category[]).includes(expense.category)).reduce((sum, expense) => sum + getActualTotal(expense), 0)
     return [
       { label: 'Vé concert', amount: getTotal(['Vé concert']), className: 'coral' },
       { label: 'Di chuyển', amount: getTotal(['Di chuyển']), className: 'rose' },
       { label: 'Lưu trú', amount: getTotal(['Lưu trú']), className: 'apricot' },
       { label: 'Khác', amount: getOtherTotal(), className: 'berry' },
     ]
-  }, [data.expenses])
+  }, [yearExpenses])
 
-  const visibleConcerts = data.concerts.filter((concert) => {
+  const visibleConcerts = yearConcerts.filter((concert) => {
     const matchesFilter = filter === 'all' || concert.status === filter
     const normalizedQuery = query.trim().toLocaleLowerCase('vi')
     const matchesQuery = !normalizedQuery || `${concert.artist} ${concert.tour} ${concert.city}`.toLocaleLowerCase('vi').includes(normalizedQuery)
@@ -236,7 +249,7 @@ function App() {
 
   const filteredRecentExpenses = useMemo(() => {
     const normalizedName = expenseNameFilter.trim().toLocaleLowerCase('vi')
-    const filtered = data.expenses.filter((expense) => {
+    const filtered = yearExpenses.filter((expense) => {
       const matchesName = !normalizedName || expense.name.toLocaleLowerCase('vi').includes(normalizedName)
       const matchesConcert = expenseConcertFilter === 'all' || expense.concertId === expenseConcertFilter
       const matchesCategory = expenseCategoryFilter === 'all' || expense.category === expenseCategoryFilter
@@ -249,9 +262,20 @@ function App() {
       if (expenseSort === 'planned-desc') return getPlannedTotal(second) - getPlannedTotal(first)
       return getActualTotal(second) - getActualTotal(first)
     })
-  }, [data.expenses, expenseNameFilter, expenseConcertFilter, expenseCategoryFilter, expenseSort])
+  }, [yearExpenses, expenseNameFilter, expenseConcertFilter, expenseCategoryFilter, expenseSort])
   const recentPagination = usePagination(filteredRecentExpenses.length)
   const resetRecentPage = () => recentPagination.setPage(1)
+  const changeYear = (value: string) => {
+    const nextYear: YearFilter = value === 'all' ? 'all' : Number(value)
+    setSelectedYear(nextYear)
+    setFilter((current) => current === 'all' || data.concerts.some((concert) => (nextYear === 'all' || getConcertYear(concert) === nextYear) && concert.status === current) ? current : 'all')
+    setExpandedConcertId(null)
+    setExpenseNameFilter('')
+    setExpenseConcertFilter('all')
+    setExpenseCategoryFilter('all')
+    setExpenseSort('recent-added')
+    resetRecentPage()
+  }
 
   const saveExpense = (expense: Expense) => {
     const exists = data.expenses.some((item) => item.id === expense.id)
@@ -263,6 +287,7 @@ function App() {
   const saveConcert = (concert: Concert) => {
     const exists = data.concerts.some((item) => item.id === concert.id)
     setData((current) => ({ ...current, concerts: exists ? current.concerts.map((item) => item.id === concert.id ? concert : item) : [...current.concerts, concert] }))
+    if (!exists) setSelectedYear(getConcertYear(concert))
     setAnnouncement(exists ? 'Đã cập nhật concert' : 'Đã thêm concert mới')
     closeModal()
   }
@@ -281,13 +306,15 @@ function App() {
 
   const deleteConcert = (concert: Concert) => {
     if (!window.confirm(`Xóa concert “${concert.artist}” và toàn bộ chi phí liên quan?`)) return
-    setData((current) => ({ concerts: current.concerts.filter((item) => item.id !== concert.id), expenses: current.expenses.filter((expense) => expense.concertId !== concert.id) }))
+    const remainingConcerts = data.concerts.filter((item) => item.id !== concert.id)
+    setData((current) => ({ concerts: remainingConcerts, expenses: current.expenses.filter((expense) => expense.concertId !== concert.id) }))
+    if (selectedYear !== 'all' && !remainingConcerts.some((item) => getConcertYear(item) === selectedYear)) setSelectedYear(getDefaultYear(remainingConcerts))
     setExpandedConcertId((current) => current === concert.id ? null : current)
     setAnnouncement('Đã xóa concert')
   }
 
-  const upcomingCount = data.concerts.filter((concert) => concert.status === 'upcoming').length
-  const pastCount = data.concerts.length - upcomingCount
+  const upcomingCount = yearConcerts.filter((concert) => concert.status === 'upcoming').length
+  const pastCount = yearConcerts.length - upcomingCount
   const remaining = preferences.budget - totalActual
   const donutStops = useMemo(() => {
     const percentages = breakdown.map((item) => totalActual ? item.amount / totalActual * 100 : 0)
@@ -311,7 +338,7 @@ function App() {
             <h1 id="welcome-title">Xin chào, {preferences.displayName.split(/\s+/)[0]}! <Heart size={25} fill="currentColor" aria-hidden="true" /></h1>
             <p className="intro-copy">Mỗi sân khấu là một dấu mốc. Mình đã gom tất cả vào đây.</p>
           </div>
-          <div className="year-picker" aria-label="Khoảng thời gian"><Clock3 size={16} aria-hidden="true" /><span>Năm 2026</span><ChevronDown size={15} aria-hidden="true" /></div>
+          <label className="year-picker"><Clock3 size={16} aria-hidden="true" /><span className="sr-only">Chọn năm</span><select aria-label="Chọn năm" value={String(selectedYear)} onChange={(event) => changeYear(event.target.value)}><option value="all">Tất cả năm</option>{availableYears.map((year) => <option key={year} value={year}>Năm {year}</option>)}</select><ChevronDown size={15} aria-hidden="true" /></label>
         </section>
 
         <section className="stats-grid" aria-label="Tổng quan chi tiêu">
@@ -327,15 +354,15 @@ function App() {
 
           <article className="stat-card stat-pink">
             <div className="stat-top"><span>CONCERT ĐÃ LÊN KẾ HOẠCH</span><Ticket size={21} aria-hidden="true" /></div>
-            <strong>{data.concerts.length} concerts</strong>
+            <strong>{yearConcerts.length} concerts</strong>
             <p>{upcomingCount} sắp tới <span aria-hidden="true">·</span> {pastCount} đã đi</p>
-            <div className="artist-stamps" aria-label={`Nghệ sĩ: ${data.concerts.map((concert) => concert.artist).join(', ')}`}>
-              {data.concerts.slice(0, 3).map((concert) => <span key={concert.id}>{concert.artist.slice(0, 2)}</span>)}
+            <div className="artist-stamps" aria-label={`Nghệ sĩ: ${yearConcerts.map((concert) => concert.artist).join(', ')}`}>
+              {yearConcerts.slice(0, 3).map((concert) => <span key={concert.id}>{concert.artist.slice(0, 2)}</span>)}
             </div>
           </article>
 
           <article className="stat-card stat-cream">
-            <div className="stat-top"><span>NGÂN SÁCH CÒN LẠI</span><span className="tiny-label">2026</span></div>
+            <div className="stat-top"><span>NGÂN SÁCH CÒN LẠI</span><span className="tiny-label">{selectedYear === 'all' ? 'TẤT CẢ' : selectedYear}</span></div>
             <strong>{formatMoney(remaining)}</strong>
             <div className="budget-track"><span style={{ width: `${Math.min(100, totalActual / preferences.budget * 100)}%` }} /></div>
             <p>Đã dùng {Math.round(totalActual / preferences.budget * 100)}% của {formatMoney(preferences.budget)}</p>
@@ -385,11 +412,11 @@ function App() {
           <div className="section-heading"><div><p className="section-kicker">MỚI NHẤT</p><h2 id="recent-title">Chi phí gần đây</h2></div><button className="text-button" onClick={() => setModal({ type: 'expense' })}><Plus size={15} /> Thêm khoản chi</button></div>
           <div className="expense-filters" aria-label="Bộ lọc chi phí gần đây">
             <label className="expense-filter-field"><span>Tên khoản chi</span><input aria-label="Lọc theo tên khoản chi" value={expenseNameFilter} onChange={(event) => { setExpenseNameFilter(event.target.value); resetRecentPage() }} placeholder="Tìm tên khoản chi..." /></label>
-            <label className="expense-filter-field"><span>Concert</span><select aria-label="Lọc theo concert" value={expenseConcertFilter} onChange={(event) => { setExpenseConcertFilter(event.target.value); resetRecentPage() }}><option value="all">Tất cả concert</option>{data.concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></label>
+            <label className="expense-filter-field"><span>Concert</span><select aria-label="Lọc theo concert" value={expenseConcertFilter} onChange={(event) => { setExpenseConcertFilter(event.target.value); resetRecentPage() }}><option value="all">Tất cả concert</option>{yearConcerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></label>
             <label className="expense-filter-field"><span>Danh mục</span><select aria-label="Lọc theo danh mục" value={expenseCategoryFilter} onChange={(event) => { setExpenseCategoryFilter(event.target.value); resetRecentPage() }}><option value="all">Tất cả danh mục</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
             <label className="expense-filter-field"><span>Sắp xếp</span><select aria-label="Sắp xếp chi phí" value={expenseSort} onChange={(event) => { setExpenseSort(event.target.value as ExpenseSort); resetRecentPage() }}><option value="recent-added">Mới thêm gần đây</option><option value="date-desc">Ngày mới nhất</option><option value="date-asc">Ngày cũ nhất</option><option value="planned-desc">Dự tính cao nhất</option><option value="actual-desc">Thực tế cao nhất</option></select></label>
           </div>
-          <div className="expense-filter-result" role="status" aria-live="polite">{filteredRecentExpenses.length} / {data.expenses.length} khoản chi</div>
+          <div className="expense-filter-result" role="status" aria-live="polite">{filteredRecentExpenses.length} / {yearExpenses.length} khoản chi</div>
           <div className="expense-table">
             {filteredRecentExpenses.slice(recentPagination.startIndex, recentPagination.endIndex).map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={data.concerts.find((concert) => concert.id === expense.concertId)} onEdit={() => setModal({ type: 'expense', item: expense })} onDelete={() => deleteExpense(expense)} />)}
             {!filteredRecentExpenses.length && <div className="expense-filter-empty"><Search size={18} aria-hidden="true" /><span>Không có khoản chi phù hợp với bộ lọc.</span></div>}
@@ -401,7 +428,7 @@ function App() {
       <MobileNav onOpenSettings={() => setModal({ type: 'settings' })} />
       {modal?.type === 'expense' && <ExpenseModal key={modal.item?.id ?? `new-expense-${modal.concertId ?? 'general'}`} item={modal.item} initialConcertId={modal.concertId} concerts={data.concerts} onClose={closeModal} onSave={saveExpense} />}
       {modal?.type === 'concert' && <ConcertModal key={modal.item?.id ?? 'new-concert'} item={modal.item} onClose={closeModal} onSave={saveConcert} />}
-      {modal?.type === 'report' && <ReportModal expenses={data.expenses} concerts={data.concerts} totalPlanned={totalPlanned} totalActual={totalActual} budget={preferences.budget} onClose={closeModal} />}
+      {modal?.type === 'report' && <ReportModal expenses={yearExpenses} concerts={yearConcerts} totalPlanned={totalPlanned} totalActual={totalActual} budget={preferences.budget} periodLabel={selectedYear === 'all' ? 'Tất cả năm' : `Năm ${selectedYear}`} onClose={closeModal} />}
       {modal?.type === 'settings' && <SettingsModal preferences={preferences} onClose={closeModal} onSave={savePreferences} />}
       <div className={`toast ${announcement ? 'show' : ''}`} role="status" aria-live="polite"><Heart size={16} fill="currentColor" />{announcement}</div>
     </div>
@@ -562,7 +589,7 @@ function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () =
   return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div><div className="form-field"><label htmlFor="concert-ticket-url">Link bán vé</label><input id="concert-ticket-url" type="url" value={ticketUrl} onChange={(event) => { setTicketUrl(event.target.value); setTicketUrlError('') }} placeholder="https://ticketbox.vn/..." aria-invalid={Boolean(ticketUrlError)} aria-describedby={ticketUrlError ? 'concert-ticket-url-error' : undefined} />{ticketUrlError && <span id="concert-ticket-url-error" className="field-error" role="alert">{ticketUrlError}</span>}</div><div className="form-field"><label htmlFor="concert-related-info">Thông tin liên quan</label><textarea id="concert-related-info" value={relatedInfo} onChange={(event) => setRelatedInfo(event.target.value)} placeholder="Ví dụ: thời gian mở bán, quyền lợi vé, hướng dẫn check-in..." /></div><div className="form-field"><label htmlFor="concert-announcement">Thông báo / lưu ý</label><textarea id="concert-announcement" value={announcement} onChange={(event) => setAnnouncement(event.target.value)} placeholder="Ví dụ: mang CCCD, giờ tập trung, quy định vật dụng..." /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} /></form></ModalFrame>
 }
 
-function ReportModal({ expenses, concerts, totalPlanned, totalActual, budget, onClose }: { expenses: Expense[]; concerts: Concert[]; totalPlanned: number; totalActual: number; budget: number; onClose: () => void }) {
+function ReportModal({ expenses, concerts, totalPlanned, totalActual, budget, periodLabel, onClose }: { expenses: Expense[]; concerts: Concert[]; totalPlanned: number; totalActual: number; budget: number; periodLabel: string; onClose: () => void }) {
   const dialogRef = useAccessibleModal(onClose)
   const categoryRows = useMemo(() => {
     const totals = new Map<string, number>()
@@ -576,7 +603,7 @@ function ReportModal({ expenses, concerts, totalPlanned, totalActual, budget, on
   })).sort((first, second) => second.amount - first.amount), [concerts, expenses])
   const variance = totalActual - totalPlanned
 
-  return <ModalFrame title="Báo cáo chi tiết" kicker="TỔNG HỢP CHI TIÊU" onClose={onClose} dialogRef={dialogRef}><div className="report-modal-content"><div className="report-summary"><div><span>Tổng dự tính</span><strong>{formatMoney(totalPlanned)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(totalActual)}</strong></div><div><span>{variance > 0 ? 'Vượt dự tính' : 'Tiết kiệm'}</span><strong className={variance > 0 ? 'negative' : 'positive'}>{formatMoney(Math.abs(variance))}</strong></div><div><span>Còn lại trong ngân sách</span><strong>{formatMoney(budget - totalActual)}</strong></div></div><div className="report-columns"><section aria-labelledby="category-report-title"><h3 id="category-report-title">Tổng theo danh mục</h3><div className="report-list" role="list">{categoryRows.map((row) => <div className="report-row" role="listitem" key={row.label}><span>{row.label}</span><div><strong>{formatMoney(row.amount)}</strong><small>{Math.round(row.amount / (totalActual || 1) * 100)}%</small></div></div>)}</div></section><section aria-labelledby="concert-report-title"><h3 id="concert-report-title">Tổng theo concert</h3><div className="report-list" role="list">{concertRows.map((row) => <div className="report-row" role="listitem" key={`${row.artist}-${row.city}`}><span><strong>{row.artist}</strong><small>{row.city}</small></span><div><strong>{formatMoney(row.amount)}</strong><small>{Math.round(row.amount / (totalActual || 1) * 100)}%</small></div></div>)}</div></section></div></div></ModalFrame>
+  return <ModalFrame title="Báo cáo chi tiết" kicker="TỔNG HỢP CHI TIÊU" onClose={onClose} dialogRef={dialogRef}><div className="report-modal-content"><p className="report-period">{periodLabel}</p><div className="report-summary"><div><span>Tổng dự tính</span><strong>{formatMoney(totalPlanned)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(totalActual)}</strong></div><div><span>{variance > 0 ? 'Vượt dự tính' : 'Tiết kiệm'}</span><strong className={variance > 0 ? 'negative' : 'positive'}>{formatMoney(Math.abs(variance))}</strong></div><div><span>Còn lại trong ngân sách</span><strong>{formatMoney(budget - totalActual)}</strong></div></div><div className="report-columns"><section aria-labelledby="category-report-title"><h3 id="category-report-title">Tổng theo danh mục</h3><div className="report-list" role="list">{categoryRows.map((row) => <div className="report-row" role="listitem" key={row.label}><span>{row.label}</span><div><strong>{formatMoney(row.amount)}</strong><small>{Math.round(row.amount / (totalActual || 1) * 100)}%</small></div></div>)}</div></section><section aria-labelledby="concert-report-title"><h3 id="concert-report-title">Tổng theo concert</h3><div className="report-list" role="list">{concertRows.map((row) => <div className="report-row" role="listitem" key={`${row.artist}-${row.city}`}><span><strong>{row.artist}</strong><small>{row.city}</small></span><div><strong>{formatMoney(row.amount)}</strong><small>{Math.round(row.amount / (totalActual || 1) * 100)}%</small></div></div>)}</div></section></div></div></ModalFrame>
 }
 
 function SettingsModal({ preferences, onClose, onSave }: { preferences: AppPreferences; onClose: () => void; onSave: (preferences: AppPreferences) => void }) {
