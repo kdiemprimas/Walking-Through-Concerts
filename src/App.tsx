@@ -2,6 +2,7 @@ import { FormEvent, type CSSProperties, useCallback, useEffect, useMemo, useRef,
 import {
   ArrowUpRight,
   BarChart3,
+  BellRing,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
@@ -10,6 +11,8 @@ import {
   Clock3,
   Heart,
   Home,
+  Info,
+  ExternalLink,
   MapPin,
   Pencil,
   Plus,
@@ -39,6 +42,9 @@ type Concert = {
   status: ConcertStatus
   color: string
   accent: string
+  ticketUrl?: string
+  relatedInfo?: string
+  announcement?: string
 }
 
 type Expense = {
@@ -62,6 +68,7 @@ type StoredExpense = Omit<Expense, 'plannedAmount' | 'actualAmount' | 'peopleCou
 }
 type StoredData = { concerts: Concert[]; expenses: StoredExpense[] }
 type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | null
+type ExpenseSort = 'recent-added' | 'date-desc' | 'date-asc' | 'planned-desc' | 'actual-desc'
 
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
 const BUDGET = 90_000_000
@@ -119,7 +126,7 @@ const loadData = (): AppData => {
     if (!saved) return cloneInitialData()
     const parsed = JSON.parse(saved) as StoredData
     if (!Array.isArray(parsed.concerts) || !Array.isArray(parsed.expenses)) return cloneInitialData()
-    return { concerts: parsed.concerts, expenses: parsed.expenses.map(normalizeExpense) }
+    return { concerts: parsed.concerts.map(normalizeConcert), expenses: parsed.expenses.map(normalizeExpense) }
   } catch {
     return cloneInitialData()
   }
@@ -128,6 +135,21 @@ const loadData = (): AppData => {
 const getPlannedTotal = (expense: Expense) => expense.plannedAmount * expense.peopleCount
 const getActualTotal = (expense: Expense) => expense.actualAmount * expense.peopleCount
 const getCategoryLabel = (expense: Expense) => expense.category === 'Khác' && expense.customCategory ? expense.customCategory : expense.category
+const isSafeExternalUrl = (value: string) => {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+const normalizeConcert = (concert: Concert): Concert => ({
+  ...concert,
+  ticketUrl: typeof concert.ticketUrl === 'string' && isSafeExternalUrl(concert.ticketUrl.trim()) ? concert.ticketUrl.trim() : undefined,
+  relatedInfo: typeof concert.relatedInfo === 'string' && concert.relatedInfo.trim() ? concert.relatedInfo.trim() : undefined,
+  announcement: typeof concert.announcement === 'string' && concert.announcement.trim() ? concert.announcement.trim() : undefined,
+})
 
 const formatMoney = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
 const formatCompact = (value: number) => `${(value / 1_000_000).toFixed(value % 1_000_000 ? 1 : 0)}M`
@@ -144,12 +166,15 @@ function usePagination(itemCount: number, pageSize = EXPENSES_PER_PAGE) {
 
 function App() {
   const [data, setData] = useState<AppData>(loadData)
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<Filter>('upcoming')
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalState>(null)
   const [expandedConcertId, setExpandedConcertId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
-  const recentPagination = usePagination(data.expenses.length)
+  const [expenseNameFilter, setExpenseNameFilter] = useState('')
+  const [expenseConcertFilter, setExpenseConcertFilter] = useState('all')
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState('all')
+  const [expenseSort, setExpenseSort] = useState<ExpenseSort>('recent-added')
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
@@ -181,7 +206,31 @@ function App() {
     const normalizedQuery = query.trim().toLocaleLowerCase('vi')
     const matchesQuery = !normalizedQuery || `${concert.artist} ${concert.tour} ${concert.city}`.toLocaleLowerCase('vi').includes(normalizedQuery)
     return matchesFilter && matchesQuery
+  }).sort((first, second) => {
+    if (filter === 'all' && first.status !== second.status) return first.status === 'upcoming' ? -1 : 1
+    return first.status === 'upcoming'
+      ? first.date.localeCompare(second.date)
+      : second.date.localeCompare(first.date)
   })
+
+  const filteredRecentExpenses = useMemo(() => {
+    const normalizedName = expenseNameFilter.trim().toLocaleLowerCase('vi')
+    const filtered = data.expenses.filter((expense) => {
+      const matchesName = !normalizedName || expense.name.toLocaleLowerCase('vi').includes(normalizedName)
+      const matchesConcert = expenseConcertFilter === 'all' || expense.concertId === expenseConcertFilter
+      const matchesCategory = expenseCategoryFilter === 'all' || expense.category === expenseCategoryFilter
+      return matchesName && matchesConcert && matchesCategory
+    })
+    if (expenseSort === 'recent-added') return filtered
+    return [...filtered].sort((first, second) => {
+      if (expenseSort === 'date-desc') return second.date.localeCompare(first.date)
+      if (expenseSort === 'date-asc') return first.date.localeCompare(second.date)
+      if (expenseSort === 'planned-desc') return getPlannedTotal(second) - getPlannedTotal(first)
+      return getActualTotal(second) - getActualTotal(first)
+    })
+  }, [data.expenses, expenseNameFilter, expenseConcertFilter, expenseCategoryFilter, expenseSort])
+  const recentPagination = usePagination(filteredRecentExpenses.length)
+  const resetRecentPage = () => recentPagination.setPage(1)
 
   const saveExpense = (expense: Expense) => {
     const exists = data.expenses.some((item) => item.id === expense.id)
@@ -271,7 +320,7 @@ function App() {
             <div className="section-heading">
               <div><p className="section-kicker">LỊCH TRÌNH</p><h2>Concert của tôi</h2></div>
               <div className="filter-tabs" aria-label="Lọc concert">
-                {([['all', 'Tất cả'], ['upcoming', 'Sắp tới'], ['past', 'Đã đi']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} aria-pressed={filter === value}>{label}</button>)}
+                {([['upcoming', 'Sắp tới'], ['all', 'Tất cả'], ['past', 'Đã đi']] as const).map(([value, label]) => <button key={value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)} aria-pressed={filter === value}>{label}</button>)}
               </div>
             </div>
             <div className="concert-list" aria-live="polite">
@@ -307,10 +356,18 @@ function App() {
 
         <section className="recent-section" id="expenses" aria-labelledby="recent-title">
           <div className="section-heading"><div><p className="section-kicker">MỚI NHẤT</p><h2 id="recent-title">Chi phí gần đây</h2></div><button className="text-button" onClick={() => setModal({ type: 'expense' })}><Plus size={15} /> Thêm khoản chi</button></div>
-          <div className="expense-table">
-            {data.expenses.slice(recentPagination.startIndex, recentPagination.endIndex).map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={data.concerts.find((concert) => concert.id === expense.concertId)} onEdit={() => setModal({ type: 'expense', item: expense })} onDelete={() => deleteExpense(expense)} />)}
+          <div className="expense-filters" aria-label="Bộ lọc chi phí gần đây">
+            <label className="expense-filter-field"><span>Tên khoản chi</span><input aria-label="Lọc theo tên khoản chi" value={expenseNameFilter} onChange={(event) => { setExpenseNameFilter(event.target.value); resetRecentPage() }} placeholder="Tìm tên khoản chi..." /></label>
+            <label className="expense-filter-field"><span>Concert</span><select aria-label="Lọc theo concert" value={expenseConcertFilter} onChange={(event) => { setExpenseConcertFilter(event.target.value); resetRecentPage() }}><option value="all">Tất cả concert</option>{data.concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></label>
+            <label className="expense-filter-field"><span>Danh mục</span><select aria-label="Lọc theo danh mục" value={expenseCategoryFilter} onChange={(event) => { setExpenseCategoryFilter(event.target.value); resetRecentPage() }}><option value="all">Tất cả danh mục</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+            <label className="expense-filter-field"><span>Sắp xếp</span><select aria-label="Sắp xếp chi phí" value={expenseSort} onChange={(event) => { setExpenseSort(event.target.value as ExpenseSort); resetRecentPage() }}><option value="recent-added">Mới thêm gần đây</option><option value="date-desc">Ngày mới nhất</option><option value="date-asc">Ngày cũ nhất</option><option value="planned-desc">Dự tính cao nhất</option><option value="actual-desc">Thực tế cao nhất</option></select></label>
           </div>
-          <TablePagination label="Chi phí gần đây" itemCount={data.expenses.length} pagination={recentPagination} />
+          <div className="expense-filter-result" role="status" aria-live="polite">{filteredRecentExpenses.length} / {data.expenses.length} khoản chi</div>
+          <div className="expense-table">
+            {filteredRecentExpenses.slice(recentPagination.startIndex, recentPagination.endIndex).map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={data.concerts.find((concert) => concert.id === expense.concertId)} onEdit={() => setModal({ type: 'expense', item: expense })} onDelete={() => deleteExpense(expense)} />)}
+            {!filteredRecentExpenses.length && <div className="expense-filter-empty"><Search size={18} aria-hidden="true" /><span>Không có khoản chi phù hợp với bộ lọc.</span></div>}
+          </div>
+          <TablePagination label="Chi phí gần đây" itemCount={filteredRecentExpenses.length} pagination={recentPagination} />
         </section>
       </main>
 
@@ -334,6 +391,7 @@ function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddE
   const detailsId = `concert-expenses-${concert.id}`
   const titleId = `${detailsId}-title`
   const pagination = usePagination(expenses.length)
+  const hasConcertInformation = Boolean(concert.ticketUrl || concert.relatedInfo || concert.announcement)
   return <div className={`concert-entry ${isExpanded ? 'is-open' : ''}`}>
     <article className="concert-ticket" style={{ '--ticket-color': concert.color, '--ticket-accent': concert.accent } as CSSProperties}>
       <button type="button" className="concert-ticket-toggle" aria-label={`${isExpanded ? 'Ẩn' : 'Xem'} chi phí ${concert.artist}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={onToggle}>
@@ -348,6 +406,10 @@ function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddE
         <div><p className="section-kicker">CHI TIẾT CHI TIÊU</p><h3 id={titleId}>Chi phí của {concert.artist}</h3><span>{expenses.length} khoản chi · {concert.city}</span></div>
         <div className="concert-expenses-summary"><div><span>Dự tính <strong>{formatMoney(totals.planned)}</strong></span><span>Thực tế <strong>{formatMoney(totals.actual)}</strong></span></div><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
       </div>
+      {hasConcertInformation && <div className="concert-information" aria-label={`Thông tin concert ${concert.artist}`}>
+        {concert.announcement && <div className="concert-announcement" role="note"><BellRing size={18} aria-hidden="true" /><div><strong>Thông báo / lưu ý</strong><p>{concert.announcement}</p></div></div>}
+        {(concert.relatedInfo || concert.ticketUrl) && <div className="concert-related-info"><Info size={18} aria-hidden="true" /><div>{concert.relatedInfo && <p>{concert.relatedInfo}</p>}{concert.ticketUrl && <a href={concert.ticketUrl} target="_blank" rel="noopener noreferrer" aria-label="Mở link bán vé">Link bán vé <ExternalLink size={14} aria-hidden="true" /></a>}</div></div>}
+      </div>}
       {expenses.length ? <div className="expense-table concert-expense-table">
         {expenses.slice(pagination.startIndex, pagination.endIndex).map((expense) => <ExpenseRow key={expense.id} expense={expense} concert={concert} onEdit={() => onEditExpense(expense)} onDelete={() => onDeleteExpense(expense)} />)}
       </div> : <div className="concert-expenses-empty"><ReceiptText size={20} aria-hidden="true" /><span>Chưa có khoản chi nào cho concert này.</span></div>}
@@ -434,18 +496,40 @@ function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () =
   const [venue, setVenue] = useState(item?.venue ?? '')
   const [date, setDate] = useState(item?.date ?? '2026-12-20')
   const [status, setStatus] = useState<ConcertStatus>(item?.status ?? 'upcoming')
+  const [ticketUrl, setTicketUrl] = useState(item?.ticketUrl ?? '')
+  const [relatedInfo, setRelatedInfo] = useState(item?.relatedInfo ?? '')
+  const [announcement, setAnnouncement] = useState(item?.announcement ?? '')
   const [error, setError] = useState('')
+  const [ticketUrlError, setTicketUrlError] = useState('')
   const dialogRef = useAccessibleModal(onClose)
   const isEditing = Boolean(item)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!artist.trim()) { setError('Vui lòng nhập tên nghệ sĩ'); return }
+    const cleanTicketUrl = ticketUrl.trim()
+    if (cleanTicketUrl && !isSafeExternalUrl(cleanTicketUrl)) {
+      setTicketUrlError('Link bán vé phải bắt đầu bằng http:// hoặc https://')
+      return
+    }
     const pair = item ? [item.color, item.accent] : pastelPairs[Math.floor(Math.random() * pastelPairs.length)]
-    onSave({ id: item?.id ?? `concert-${Date.now()}`, artist: artist.trim(), tour: tour.trim() || 'LIVE IN CONCERT', city: city.trim() || 'Chưa xác định', venue: venue.trim() || 'Chưa xác định', date, status, color: pair[0], accent: pair[1] })
+    onSave({
+      id: item?.id ?? `concert-${Date.now()}`,
+      artist: artist.trim(),
+      tour: tour.trim() || 'LIVE IN CONCERT',
+      city: city.trim() || 'Chưa xác định',
+      venue: venue.trim() || 'Chưa xác định',
+      date,
+      status,
+      color: pair[0],
+      accent: pair[1],
+      ticketUrl: cleanTicketUrl || undefined,
+      relatedInfo: relatedInfo.trim() || undefined,
+      announcement: announcement.trim() || undefined,
+    })
   }
 
-  return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} /></form></ModalFrame>
+  return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div><div className="form-field"><label htmlFor="concert-ticket-url">Link bán vé</label><input id="concert-ticket-url" type="url" value={ticketUrl} onChange={(event) => { setTicketUrl(event.target.value); setTicketUrlError('') }} placeholder="https://ticketbox.vn/..." aria-invalid={Boolean(ticketUrlError)} aria-describedby={ticketUrlError ? 'concert-ticket-url-error' : undefined} />{ticketUrlError && <span id="concert-ticket-url-error" className="field-error" role="alert">{ticketUrlError}</span>}</div><div className="form-field"><label htmlFor="concert-related-info">Thông tin liên quan</label><textarea id="concert-related-info" value={relatedInfo} onChange={(event) => setRelatedInfo(event.target.value)} placeholder="Ví dụ: thời gian mở bán, quyền lợi vé, hướng dẫn check-in..." /></div><div className="form-field"><label htmlFor="concert-announcement">Thông báo / lưu ý</label><textarea id="concert-announcement" value={announcement} onChange={(event) => setAnnouncement(event.target.value)} placeholder="Ví dụ: mang CCCD, giờ tập trung, quy định vật dụng..." /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} /></form></ModalFrame>
 }
 
 function ModalFrame({ title, kicker, onClose, dialogRef, children }: { title: string; kicker: string; onClose: () => void; dialogRef: React.RefObject<HTMLDivElement | null>; children: React.ReactNode }) {

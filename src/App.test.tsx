@@ -82,6 +82,24 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('RIGHT HERE')).toBeInTheDocument()
   })
 
+  it('opens on upcoming concerts and sorts the nearest date first', () => {
+    localStorage.setItem('walking-through-concerts-data-v2', JSON.stringify({
+      concerts: [
+        { id: 'later', artist: 'LATER', tour: 'DECEMBER', city: 'Hà Nội', date: '2026-12-20', venue: 'Stadium', status: 'upcoming', color: '#f5e9eb', accent: '#8c5261' },
+        { id: 'past', artist: 'PAST', tour: 'LAST YEAR', city: 'Seoul', date: '2025-10-10', venue: 'Dome', status: 'past', color: '#f5e9eb', accent: '#8c5261' },
+        { id: 'near', artist: 'NEAR', tour: 'SEPTEMBER', city: 'Bangkok', date: '2026-09-05', venue: 'Arena', status: 'upcoming', color: '#f5e9eb', accent: '#8c5261' },
+      ],
+      expenses: [],
+    }))
+    render(<App />)
+
+    const tabs = screen.getByLabelText('Lọc concert')
+    expect(within(tabs).getAllByRole('button').map((button) => button.textContent)).toEqual(['Sắp tới', 'Tất cả', 'Đã đi'])
+    expect(within(tabs).getByRole('button', { name: 'Sắp tới' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('LAST YEAR')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Xem chi phí/ }).map((button) => button.getAttribute('aria-label'))).toEqual(['Xem chi phí NEAR', 'Xem chi phí LATER'])
+  })
+
   it('shows only the expenses that belong to the selected concert', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -123,10 +141,35 @@ describe('Walking Through Concerts dashboard', () => {
     expect(within(recentExpenses).queryByText('Vé VIP Soundcheck')).not.toBeInTheDocument()
   })
 
+  it('filters recent expenses by name, concert and category, then sorts an amount column', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const recentExpenses = screen.getByRole('region', { name: 'Chi phí gần đây' })
+
+    await user.selectOptions(within(recentExpenses).getByLabelText('Lọc theo concert'), 'concert-2')
+    expect(within(recentExpenses).getByText('Vé CAT 1')).toBeInTheDocument()
+    expect(within(recentExpenses).queryByText('Vé VIP Soundcheck')).not.toBeInTheDocument()
+
+    await user.selectOptions(within(recentExpenses).getByLabelText('Lọc theo danh mục'), 'Di chuyển')
+    expect(within(recentExpenses).getByText('Di chuyển nội thành')).toBeInTheDocument()
+    expect(within(recentExpenses).queryByText('Vé CAT 1')).not.toBeInTheDocument()
+
+    await user.selectOptions(within(recentExpenses).getByLabelText('Lọc theo concert'), 'all')
+    await user.selectOptions(within(recentExpenses).getByLabelText('Lọc theo danh mục'), 'all')
+    await user.type(within(recentExpenses).getByLabelText('Lọc theo tên khoản chi'), 'khách sạn')
+    expect(within(recentExpenses).getByText('Khách sạn Bangkok')).toBeInTheDocument()
+    expect(within(recentExpenses).getByText('Khách sạn Seoul')).toBeInTheDocument()
+
+    await user.clear(within(recentExpenses).getByLabelText('Lọc theo tên khoản chi'))
+    await user.selectOptions(within(recentExpenses).getByLabelText('Sắp xếp chi phí'), 'actual-desc')
+    expect(within(recentExpenses).getAllByText(/Vé concert Seoul|Chuyến bay Seoul|Khách sạn Seoul|Vé VIP Soundcheck/, { selector: '.expense-name strong' }).map((element) => element.textContent)).toEqual(['Vé concert Seoul', 'Chuyến bay Seoul', 'Khách sạn Seoul', 'Vé VIP Soundcheck'])
+  })
+
   it('keeps pagination independent for each concert expense table', async () => {
     const user = userEvent.setup()
     render(<App />)
 
+    await user.click(screen.getByRole('button', { name: 'Tất cả' }))
     await user.click(screen.getByRole('button', { name: 'Xem chi phí KANGDANIEL' }))
     const concertExpenses = screen.getByRole('region', { name: 'Chi phí của KANGDANIEL' })
     expect(within(concertExpenses).getByText('Trang 1 / 2')).toBeInTheDocument()
@@ -224,7 +267,7 @@ describe('Walking Through Concerts dashboard', () => {
     await user.selectOptions(category, 'Freebies')
     expect(within(dialog).queryByLabelText('Tên danh mục khác')).not.toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
-    expect(screen.getByText('Freebies')).toBeInTheDocument()
+    expect(screen.getByText('Freebies', { selector: '.expense-category' })).toBeInTheDocument()
   })
 
   it('requires, displays and persists a custom category when selecting Khác', async () => {
@@ -321,6 +364,37 @@ describe('Walking Through Concerts dashboard', () => {
     await user.type(tour, 'THE GOLDEN HOUR')
     await user.click(within(editDialog).getByRole('button', { name: 'Lưu thay đổi' }))
     expect(screen.getByText('THE GOLDEN HOUR')).toBeInTheDocument()
+  })
+
+  it('saves ticket links and concert information, then shows them in the concert details', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa SEVENTEEN' }))
+    const dialog = screen.getByRole('dialog', { name: /chỉnh sửa concert/i })
+    await user.type(within(dialog).getByLabelText('Link bán vé'), 'https://ticket.example.com/seventeen')
+    await user.type(within(dialog).getByLabelText('Thông tin liên quan'), 'Mở bán lúc 20:00, cần đăng nhập trước.')
+    await user.type(within(dialog).getByLabelText('Thông báo / lưu ý'), 'Mang theo hộ chiếu bản gốc.')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu thay đổi' }))
+
+    await user.click(screen.getByRole('button', { name: 'Xem chi phí SEVENTEEN' }))
+    const details = screen.getByRole('region', { name: 'Chi phí của SEVENTEEN' })
+    expect(within(details).getByRole('link', { name: 'Mở link bán vé' })).toHaveAttribute('href', 'https://ticket.example.com/seventeen')
+    expect(within(details).getByRole('link', { name: 'Mở link bán vé' })).toHaveAttribute('rel', expect.stringContaining('noreferrer'))
+    expect(within(details).getByText('Mở bán lúc 20:00, cần đăng nhập trước.')).toBeInTheDocument()
+    expect(within(details).getByText('Mang theo hộ chiếu bản gốc.')).toBeInTheDocument()
+
+    const saved = JSON.parse(localStorage.getItem('walking-through-concerts-data-v2') ?? '{}')
+    expect(saved.concerts[0]).toMatchObject({ ticketUrl: 'https://ticket.example.com/seventeen', relatedInfo: 'Mở bán lúc 20:00, cần đăng nhập trước.', announcement: 'Mang theo hộ chiếu bản gốc.' })
+  })
+
+  it('rejects an unsafe concert ticket link', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa SEVENTEEN' }))
+    const dialog = screen.getByRole('dialog', { name: /chỉnh sửa concert/i })
+    await user.type(within(dialog).getByLabelText('Link bán vé'), 'javascript:alert(1)')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu thay đổi' }))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Link bán vé phải bắt đầu bằng http:// hoặc https://')
   })
 
   it('deletes an expense after confirmation', async () => {
