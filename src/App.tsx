@@ -77,6 +77,11 @@ const PREFERENCES_KEY = 'walking-through-concerts-preferences-v1'
 const DEFAULT_PREFERENCES: AppPreferences = { displayName: 'Diễm Võ', tagline: 'concert lover', budget: 90_000_000 }
 const EXPENSES_PER_PAGE = 4
 const PET_LOGO = `${import.meta.env.BASE_URL}dv-v-eri-logo.png`
+const COMPANION_PETS = [
+  { name: 'DV V-eri', image: PET_LOGO },
+  { name: 'Kkuru Jam BBH', image: `${import.meta.env.BASE_URL}kkuru-jam-bbh.png` },
+  { name: 'Tèolaegi Dâu Lá', image: `${import.meta.env.BASE_URL}teolaegi-dau-la.png` },
+]
 const categories: Category[] = ['Vé concert', 'Di chuyển', 'Lưu trú', 'Ăn uống', 'Merchandise', 'Freebies', 'Cá nhân', 'Chuẩn bị', 'Trang phục & làm đẹp', 'Fan project', 'Quà tặng', 'Phí dịch vụ', 'Bảo hiểm', 'SIM & Internet', 'Khác']
 const pastelPairs = [
   ['#ffd1d9', '#7d3047'],
@@ -339,6 +344,20 @@ function App() {
             <p className="intro-copy">Mỗi sân khấu là một dấu mốc. Mình đã gom tất cả vào đây.</p>
           </div>
           <label className="year-picker"><Clock3 size={16} aria-hidden="true" /><span className="sr-only">Chọn năm</span><select aria-label="Chọn năm" value={String(selectedYear)} onChange={(event) => changeYear(event.target.value)}><option value="all">Tất cả năm</option>{availableYears.map((year) => <option key={year} value={year}>Năm {year}</option>)}</select><ChevronDown size={15} aria-hidden="true" /></label>
+        </section>
+
+        <section className="pet-corner" role="region" aria-label="Bộ ba pet đồng hành">
+          <div className="pet-corner-copy">
+            <p className="section-kicker">PET CORNER</p>
+            <h2>Hội bạn đồng hành</h2>
+            <p>Ba chiếc pet giữ một góc riêng, luôn xinh mà không che nội dung.</p>
+          </div>
+          <div className="pet-friends">
+            {COMPANION_PETS.map((pet) => <figure className="pet-friend" key={pet.name}>
+              <span className="pet-sticker"><img src={pet.image} alt={`Pet ${pet.name}`} /></span>
+              <figcaption>{pet.name}</figcaption>
+            </figure>)}
+          </div>
         </section>
 
         <section className="stats-grid" aria-label="Tổng quan chi tiêu">

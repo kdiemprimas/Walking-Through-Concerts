@@ -148,6 +148,25 @@ describe('Walking Through Concerts dashboard', () => {
     expect(logos[0]).toHaveAttribute('src', expect.stringContaining('dv-v-eri-logo'))
   })
 
+  it('keeps all three companion pets in a dedicated content-safe area', () => {
+    render(<App />)
+    const petCorner = screen.getByRole('region', { name: 'Bộ ba pet đồng hành' })
+
+    expect(within(petCorner).getByRole('img', { name: 'Pet DV V-eri' })).toBeInTheDocument()
+    expect(within(petCorner).getByRole('img', { name: 'Pet Kkuru Jam BBH' })).toBeInTheDocument()
+    expect(within(petCorner).getByRole('img', { name: 'Pet Tèolaegi Dâu Lá' })).toBeInTheDocument()
+  })
+
+  it('adapts concert tickets to their own width and wraps long content', () => {
+    expect(cssRule('body')).toMatch(/min-width:\s*0/)
+    expect(cssRule('.concert-entry')).toMatch(/container-type:\s*inline-size/)
+    expect(cssRule('.ticket-info h3')).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(styles).toMatch(/@container concert-card \(max-width: 430px\)/)
+    expect(styles).toMatch(/@container concert-card[\s\S]*?\.concert-ticket-toggle\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
+    expect(styles).toMatch(/@media \(max-width: 360px\)/)
+    expect(styles).toMatch(/@media \(max-width: 360px\)[\s\S]*?\.stat-dual-values\s*{[^}]*grid-template-columns:\s*1fr/)
+  })
+
   it('switches between concert filters', async () => {
     const user = userEvent.setup()
     render(<App />)
