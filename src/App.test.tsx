@@ -41,6 +41,59 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText(/right here/i)).toBeInTheDocument()
   })
 
+  it('opens a detailed report from the spending card and report navigation', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Xem báo cáo chi tiết' }))
+    const report = screen.getByRole('dialog', { name: 'Báo cáo chi tiết' })
+    expect(within(report).getByText('Tổng theo danh mục')).toBeInTheDocument()
+    expect(within(report).getByText('Tổng theo concert')).toBeInTheDocument()
+    expect(within(report).getByText('KANGDANIEL')).toBeInTheDocument()
+    expect(within(report).getByText('68.500.000 ₫')).toBeInTheDocument()
+
+    await user.click(within(report).getByRole('button', { name: 'Đóng' }))
+    await user.click(screen.getByRole('button', { name: 'Báo cáo' }))
+    expect(screen.getByRole('dialog', { name: 'Báo cáo chi tiết' })).toBeInTheDocument()
+  })
+
+  it('opens settings, saves preferences and restores them after reload', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Cài đặt' }))
+    const settings = screen.getByRole('dialog', { name: 'Cài đặt' })
+    await user.clear(within(settings).getByLabelText('Tên hiển thị'))
+    await user.type(within(settings).getByLabelText('Tên hiển thị'), 'Diễm Prima')
+    await user.clear(within(settings).getByLabelText('Dòng giới thiệu'))
+    await user.type(within(settings).getByLabelText('Dòng giới thiệu'), 'VIP concert lover')
+    await user.clear(within(settings).getByLabelText('Ngân sách năm'))
+    await user.type(within(settings).getByLabelText('Ngân sách năm'), '120000000')
+    await user.click(within(settings).getByRole('button', { name: 'Lưu cài đặt' }))
+
+    expect(screen.getByText('Diễm Prima')).toBeInTheDocument()
+    expect(screen.getByText('VIP concert lover')).toBeInTheDocument()
+    expect(screen.getByText(/120\.000\.000 ₫/)).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem('walking-through-concerts-preferences-v1') ?? '{}')).toEqual({ displayName: 'Diễm Prima', tagline: 'VIP concert lover', budget: 120000000 })
+
+    cleanup()
+    render(<App />)
+    expect(screen.getByText('Diễm Prima')).toBeInTheDocument()
+    expect(screen.getByText(/120\.000\.000 ₫/)).toBeInTheDocument()
+  })
+
+  it('opens settings from the mobile personal navigation and validates the budget', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Cá nhân' }))
+    const settings = screen.getByRole('dialog', { name: 'Cài đặt' })
+    await user.clear(within(settings).getByLabelText('Ngân sách năm'))
+    await user.type(within(settings).getByLabelText('Ngân sách năm'), '0')
+    await user.click(within(settings).getByRole('button', { name: 'Lưu cài đặt' }))
+    expect(within(settings).getByRole('alert')).toHaveTextContent('Ngân sách phải lớn hơn 0')
+  })
+
   it('keeps important concert and expense text large and consistent enough to read', () => {
     expect(styles).not.toContain("font-family: Inter")
     expect(cssRule('.ticket-meta')).toMatch(/font-size:\s*11px/)

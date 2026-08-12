@@ -67,11 +67,13 @@ type StoredExpense = Omit<Expense, 'plannedAmount' | 'actualAmount' | 'peopleCou
   amount?: number
 }
 type StoredData = { concerts: Concert[]; expenses: StoredExpense[] }
-type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | null
+type AppPreferences = { displayName: string; tagline: string; budget: number }
+type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | { type: 'report' } | { type: 'settings' } | null
 type ExpenseSort = 'recent-added' | 'date-desc' | 'date-asc' | 'planned-desc' | 'actual-desc'
 
 const STORAGE_KEY = 'walking-through-concerts-data-v2'
-const BUDGET = 90_000_000
+const PREFERENCES_KEY = 'walking-through-concerts-preferences-v1'
+const DEFAULT_PREFERENCES: AppPreferences = { displayName: 'Diễm Võ', tagline: 'concert lover', budget: 90_000_000 }
 const EXPENSES_PER_PAGE = 4
 const PET_LOGO = `${import.meta.env.BASE_URL}dv-v-eri-logo.png`
 const categories: Category[] = ['Vé concert', 'Di chuyển', 'Lưu trú', 'Ăn uống', 'Merchandise', 'Freebies', 'Cá nhân', 'Chuẩn bị', 'Trang phục & làm đẹp', 'Fan project', 'Quà tặng', 'Phí dịch vụ', 'Bảo hiểm', 'SIM & Internet', 'Khác']
@@ -104,6 +106,20 @@ const initialData: AppData = {
 }
 
 const cloneInitialData = (): AppData => JSON.parse(JSON.stringify(initialData)) as AppData
+
+const loadPreferences = (): AppPreferences => {
+  try {
+    const saved = localStorage.getItem(PREFERENCES_KEY)
+    if (!saved) return { ...DEFAULT_PREFERENCES }
+    const parsed = JSON.parse(saved) as Partial<AppPreferences>
+    const displayName = typeof parsed.displayName === 'string' && parsed.displayName.trim() ? parsed.displayName.trim().slice(0, 60) : DEFAULT_PREFERENCES.displayName
+    const tagline = typeof parsed.tagline === 'string' && parsed.tagline.trim() ? parsed.tagline.trim().slice(0, 100) : DEFAULT_PREFERENCES.tagline
+    const budget = Number(parsed.budget)
+    return { displayName, tagline, budget: Number.isFinite(budget) && budget > 0 && budget <= 1_000_000_000_000 ? budget : DEFAULT_PREFERENCES.budget }
+  } catch {
+    return { ...DEFAULT_PREFERENCES }
+  }
+}
 
 const normalizeExpense = (expense: StoredExpense): Expense => {
   const legacyAmount = Number(expense.amount) || 0
@@ -166,6 +182,7 @@ function usePagination(itemCount: number, pageSize = EXPENSES_PER_PAGE) {
 
 function App() {
   const [data, setData] = useState<AppData>(loadData)
+  const [preferences, setPreferences] = useState<AppPreferences>(loadPreferences)
   const [filter, setFilter] = useState<Filter>('upcoming')
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalState>(null)
@@ -179,6 +196,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   }, [data])
+
+  useEffect(() => {
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences))
+  }, [preferences])
 
   const closeModal = useCallback(() => setModal(null), [])
   const totalPlanned = useMemo(() => data.expenses.reduce((sum, expense) => sum + getPlannedTotal(expense), 0), [data.expenses])
@@ -246,6 +267,12 @@ function App() {
     closeModal()
   }
 
+  const savePreferences = (nextPreferences: AppPreferences) => {
+    setPreferences(nextPreferences)
+    setAnnouncement('Đã lưu cài đặt')
+    closeModal()
+  }
+
   const deleteExpense = (expense: Expense) => {
     if (!window.confirm(`Xóa khoản chi “${expense.name}”?`)) return
     setData((current) => ({ ...current, expenses: current.expenses.filter((item) => item.id !== expense.id) }))
@@ -261,7 +288,7 @@ function App() {
 
   const upcomingCount = data.concerts.filter((concert) => concert.status === 'upcoming').length
   const pastCount = data.concerts.length - upcomingCount
-  const remaining = BUDGET - totalActual
+  const remaining = preferences.budget - totalActual
   const donutStops = useMemo(() => {
     const percentages = breakdown.map((item) => totalActual ? item.amount / totalActual * 100 : 0)
     const a = percentages[0]
@@ -273,7 +300,7 @@ function App() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Bỏ qua đến nội dung chính</a>
-      <Sidebar />
+      <Sidebar preferences={preferences} onOpenReport={() => setModal({ type: 'report' })} onOpenSettings={() => setModal({ type: 'settings' })} />
 
       <main id="main-content" className="main-content">
         <Topbar query={query} onQueryChange={setQuery} onAddExpense={() => setModal({ type: 'expense' })} onAddConcert={() => setModal({ type: 'concert' })} />
@@ -281,7 +308,7 @@ function App() {
         <section className="intro-row" aria-labelledby="welcome-title">
           <div>
             <p className="eyebrow"><span /> NHẬT KÝ CONCERT CỦA BẠN</p>
-            <h1 id="welcome-title">Xin chào, Diễm! <Heart size={25} fill="currentColor" aria-hidden="true" /></h1>
+            <h1 id="welcome-title">Xin chào, {preferences.displayName.split(/\s+/)[0]}! <Heart size={25} fill="currentColor" aria-hidden="true" /></h1>
             <p className="intro-copy">Mỗi sân khấu là một dấu mốc. Mình đã gom tất cả vào đây.</p>
           </div>
           <div className="year-picker" aria-label="Khoảng thời gian"><Clock3 size={16} aria-hidden="true" /><span>Năm 2026</span><ChevronDown size={15} aria-hidden="true" /></div>
@@ -310,8 +337,8 @@ function App() {
           <article className="stat-card stat-cream">
             <div className="stat-top"><span>NGÂN SÁCH CÒN LẠI</span><span className="tiny-label">2026</span></div>
             <strong>{formatMoney(remaining)}</strong>
-            <div className="budget-track"><span style={{ width: `${Math.min(100, totalActual / BUDGET * 100)}%` }} /></div>
-            <p>Đã dùng {Math.round(totalActual / BUDGET * 100)}% của {formatMoney(BUDGET)}</p>
+            <div className="budget-track"><span style={{ width: `${Math.min(100, totalActual / preferences.budget * 100)}%` }} /></div>
+            <p>Đã dùng {Math.round(totalActual / preferences.budget * 100)}% của {formatMoney(preferences.budget)}</p>
           </article>
         </section>
 
@@ -350,7 +377,7 @@ function App() {
             <ul className="legend-list">
               {breakdown.map((item) => <li key={item.label}><span className={`legend-dot ${item.className}`} /><span>{item.label}</span><strong>{formatCompact(item.amount)}</strong><small>{Math.round(item.amount / (totalActual || 1) * 100)}%</small></li>)}
             </ul>
-            <button className="report-link">Xem báo cáo chi tiết <ArrowUpRight size={16} aria-hidden="true" /></button>
+            <button className="report-link" type="button" onClick={() => setModal({ type: 'report' })}>Xem báo cáo chi tiết <ArrowUpRight size={16} aria-hidden="true" /></button>
           </aside>
         </section>
 
@@ -371,16 +398,19 @@ function App() {
         </section>
       </main>
 
-      <MobileNav />
+      <MobileNav onOpenSettings={() => setModal({ type: 'settings' })} />
       {modal?.type === 'expense' && <ExpenseModal key={modal.item?.id ?? `new-expense-${modal.concertId ?? 'general'}`} item={modal.item} initialConcertId={modal.concertId} concerts={data.concerts} onClose={closeModal} onSave={saveExpense} />}
       {modal?.type === 'concert' && <ConcertModal key={modal.item?.id ?? 'new-concert'} item={modal.item} onClose={closeModal} onSave={saveConcert} />}
+      {modal?.type === 'report' && <ReportModal expenses={data.expenses} concerts={data.concerts} totalPlanned={totalPlanned} totalActual={totalActual} budget={preferences.budget} onClose={closeModal} />}
+      {modal?.type === 'settings' && <SettingsModal preferences={preferences} onClose={closeModal} onSave={savePreferences} />}
       <div className={`toast ${announcement ? 'show' : ''}`} role="status" aria-live="polite"><Heart size={16} fill="currentColor" />{announcement}</div>
     </div>
   )
 }
 
-function Sidebar() {
-  return <aside className="sidebar"><div className="brand"><span className="brand-mark"><img src={PET_LOGO} alt="DV V-eri" /></span><span>WALKING THROUGH<br /><b>CONCERTS</b></span></div><nav aria-label="Điều hướng chính"><a className="nav-item active" href="#main-content"><Home size={18} /> Tổng quan</a><a className="nav-item" href="#concerts"><Ticket size={18} /> Concert</a><a className="nav-item" href="#expenses"><ReceiptText size={18} /> Chi phí</a><a className="nav-item" href="#reports"><BarChart3 size={18} /> Báo cáo</a></nav><div className="sidebar-note"><Heart size={17} fill="currentColor" /><span>Lưu từng khoảnh khắc,<br />nhớ từng sân khấu.</span></div><div className="sidebar-bottom"><a className="nav-item" href="#settings"><Settings size={18} /> Cài đặt</a><div className="profile"><div className="avatar">DV</div><div><strong>Diễm Võ</strong><span>concert lover</span></div></div></div></aside>
+function Sidebar({ preferences, onOpenReport, onOpenSettings }: { preferences: AppPreferences; onOpenReport: () => void; onOpenSettings: () => void }) {
+  const initials = preferences.displayName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toLocaleUpperCase('vi')
+  return <aside className="sidebar"><div className="brand"><span className="brand-mark"><img src={PET_LOGO} alt="DV V-eri" /></span><span>WALKING THROUGH<br /><b>CONCERTS</b></span></div><nav aria-label="Điều hướng chính"><a className="nav-item active" href="#main-content"><Home size={18} /> Tổng quan</a><a className="nav-item" href="#concerts"><Ticket size={18} /> Concert</a><a className="nav-item" href="#expenses"><ReceiptText size={18} /> Chi phí</a><button className="nav-item" type="button" onClick={onOpenReport}><BarChart3 size={18} /> Báo cáo</button></nav><div className="sidebar-note"><Heart size={17} fill="currentColor" /><span>Lưu từng khoảnh khắc,<br />nhớ từng sân khấu.</span></div><div className="sidebar-bottom"><button className="nav-item" type="button" onClick={onOpenSettings}><Settings size={18} /> Cài đặt</button><div className="profile"><div className="avatar">{initials}</div><div><strong>{preferences.displayName}</strong><span>{preferences.tagline}</span></div></div></div></aside>
 }
 
 function Topbar({ query, onQueryChange, onAddExpense, onAddConcert }: { query: string; onQueryChange: (value: string) => void; onAddExpense: () => void; onAddConcert: () => void }) {
@@ -532,6 +562,44 @@ function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () =
   return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div><div className="form-field"><label htmlFor="concert-ticket-url">Link bán vé</label><input id="concert-ticket-url" type="url" value={ticketUrl} onChange={(event) => { setTicketUrl(event.target.value); setTicketUrlError('') }} placeholder="https://ticketbox.vn/..." aria-invalid={Boolean(ticketUrlError)} aria-describedby={ticketUrlError ? 'concert-ticket-url-error' : undefined} />{ticketUrlError && <span id="concert-ticket-url-error" className="field-error" role="alert">{ticketUrlError}</span>}</div><div className="form-field"><label htmlFor="concert-related-info">Thông tin liên quan</label><textarea id="concert-related-info" value={relatedInfo} onChange={(event) => setRelatedInfo(event.target.value)} placeholder="Ví dụ: thời gian mở bán, quyền lợi vé, hướng dẫn check-in..." /></div><div className="form-field"><label htmlFor="concert-announcement">Thông báo / lưu ý</label><textarea id="concert-announcement" value={announcement} onChange={(event) => setAnnouncement(event.target.value)} placeholder="Ví dụ: mang CCCD, giờ tập trung, quy định vật dụng..." /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} /></form></ModalFrame>
 }
 
+function ReportModal({ expenses, concerts, totalPlanned, totalActual, budget, onClose }: { expenses: Expense[]; concerts: Concert[]; totalPlanned: number; totalActual: number; budget: number; onClose: () => void }) {
+  const dialogRef = useAccessibleModal(onClose)
+  const categoryRows = useMemo(() => {
+    const totals = new Map<string, number>()
+    expenses.forEach((expense) => totals.set(getCategoryLabel(expense), (totals.get(getCategoryLabel(expense)) ?? 0) + getActualTotal(expense)))
+    return [...totals.entries()].map(([label, amount]) => ({ label, amount })).sort((first, second) => second.amount - first.amount)
+  }, [expenses])
+  const concertRows = useMemo(() => concerts.map((concert) => ({
+    artist: concert.artist,
+    city: concert.city,
+    amount: expenses.filter((expense) => expense.concertId === concert.id).reduce((sum, expense) => sum + getActualTotal(expense), 0),
+  })).sort((first, second) => second.amount - first.amount), [concerts, expenses])
+  const variance = totalActual - totalPlanned
+
+  return <ModalFrame title="Báo cáo chi tiết" kicker="TỔNG HỢP CHI TIÊU" onClose={onClose} dialogRef={dialogRef}><div className="report-modal-content"><div className="report-summary"><div><span>Tổng dự tính</span><strong>{formatMoney(totalPlanned)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(totalActual)}</strong></div><div><span>{variance > 0 ? 'Vượt dự tính' : 'Tiết kiệm'}</span><strong className={variance > 0 ? 'negative' : 'positive'}>{formatMoney(Math.abs(variance))}</strong></div><div><span>Còn lại trong ngân sách</span><strong>{formatMoney(budget - totalActual)}</strong></div></div><div className="report-columns"><section aria-labelledby="category-report-title"><h3 id="category-report-title">Tổng theo danh mục</h3><div className="report-list" role="list">{categoryRows.map((row) => <div className="report-row" role="listitem" key={row.label}><span>{row.label}</span><div><strong>{formatMoney(row.amount)}</strong><small>{Math.round(row.amount / (totalActual || 1) * 100)}%</small></div></div>)}</div></section><section aria-labelledby="concert-report-title"><h3 id="concert-report-title">Tổng theo concert</h3><div className="report-list" role="list">{concertRows.map((row) => <div className="report-row" role="listitem" key={`${row.artist}-${row.city}`}><span><strong>{row.artist}</strong><small>{row.city}</small></span><div><strong>{formatMoney(row.amount)}</strong><small>{Math.round(row.amount / (totalActual || 1) * 100)}%</small></div></div>)}</div></section></div></div></ModalFrame>
+}
+
+function SettingsModal({ preferences, onClose, onSave }: { preferences: AppPreferences; onClose: () => void; onSave: (preferences: AppPreferences) => void }) {
+  const [displayName, setDisplayName] = useState(preferences.displayName)
+  const [tagline, setTagline] = useState(preferences.tagline)
+  const [budget, setBudget] = useState(String(preferences.budget))
+  const [nameError, setNameError] = useState('')
+  const [budgetError, setBudgetError] = useState('')
+  const dialogRef = useAccessibleModal(onClose)
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    const cleanName = displayName.trim()
+    const cleanTagline = tagline.trim()
+    const parsedBudget = Number(budget)
+    if (!cleanName) { setNameError('Vui lòng nhập tên hiển thị'); return }
+    if (!Number.isFinite(parsedBudget) || parsedBudget <= 0 || parsedBudget > 1_000_000_000_000) { setBudgetError('Ngân sách phải lớn hơn 0'); return }
+    onSave({ displayName: cleanName.slice(0, 60), tagline: (cleanTagline || DEFAULT_PREFERENCES.tagline).slice(0, 100), budget: Math.round(parsedBudget) })
+  }
+
+  return <ModalFrame title="Cài đặt" kicker="CÁ NHÂN HÓA" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-field"><label className="required-label" htmlFor="settings-display-name">Tên hiển thị</label><input id="settings-display-name" value={displayName} maxLength={60} onChange={(event) => { setDisplayName(event.target.value); setNameError('') }} aria-required="true" aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'settings-name-error' : undefined} autoFocus />{nameError && <span id="settings-name-error" className="field-error" role="alert">{nameError}</span>}</div><div className="form-field"><label htmlFor="settings-tagline">Dòng giới thiệu</label><input id="settings-tagline" value={tagline} maxLength={100} onChange={(event) => setTagline(event.target.value)} placeholder="Ví dụ: concert lover" /></div><div className="form-field"><label className="required-label" htmlFor="settings-budget">Ngân sách năm</label><div className="money-input"><input id="settings-budget" type="number" min="1" max="1000000000000" step="1000" value={budget} onChange={(event) => { setBudget(event.target.value); setBudgetError('') }} aria-required="true" aria-invalid={Boolean(budgetError)} aria-describedby={budgetError ? 'settings-budget-error' : 'settings-budget-hint'} /><span>VND</span></div><small id="settings-budget-hint" className="field-hint">Ngân sách được dùng để tính số tiền còn lại trên trang tổng quan.</small>{budgetError && <span id="settings-budget-error" className="field-error" role="alert">{budgetError}</span>}</div><ModalActions onClose={onClose} submitLabel="Lưu cài đặt" /></form></ModalFrame>
+}
+
 function ModalFrame({ title, kicker, onClose, dialogRef, children }: { title: string; kicker: string; onClose: () => void; dialogRef: React.RefObject<HTMLDivElement | null>; children: React.ReactNode }) {
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" ref={dialogRef} tabIndex={-1}><div className="modal-heading"><div><p className="section-kicker">{kicker}</p><h2 id="modal-title">{title}</h2></div><button className="close-button" type="button" aria-label="Đóng" onClick={onClose}><X size={20} /></button></div>{children}</div></div>
 }
@@ -540,8 +608,8 @@ function ModalActions({ onClose, submitLabel }: { onClose: () => void; submitLab
   return <div className="modal-actions"><button type="button" className="cancel-button" onClick={onClose}>Hủy</button><button type="submit" className="save-button"><Sparkles size={17} aria-hidden="true" /> {submitLabel}</button></div>
 }
 
-function MobileNav() {
-  return <nav className="mobile-nav" aria-label="Điều hướng di động"><a className="active" href="#main-content"><Home size={19} /><span>Tổng quan</span></a><a href="#concerts"><Ticket size={19} /><span>Concert</span></a><a href="#expenses"><ReceiptText size={19} /><span>Chi phí</span></a><a href="#profile"><CircleUserRound size={19} /><span>Cá nhân</span></a></nav>
+function MobileNav({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return <nav className="mobile-nav" aria-label="Điều hướng di động"><a className="active" href="#main-content"><Home size={19} /><span>Tổng quan</span></a><a href="#concerts"><Ticket size={19} /><span>Concert</span></a><a href="#expenses"><ReceiptText size={19} /><span>Chi phí</span></a><button type="button" onClick={onOpenSettings}><CircleUserRound size={19} /><span>Cá nhân</span></button></nav>
 }
 
 export default App
