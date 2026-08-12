@@ -88,7 +88,6 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 .pet-corner { display: grid; grid-template-columns: minmax(190px, 1fr) auto; align-items: center; gap: 22px; margin-bottom: 18px; padding: 13px 16px 13px 20px; overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: linear-gradient(110deg, rgba(250,235,234,.7), rgba(255,248,239,.78) 52%, rgba(247,237,242,.68)); box-shadow: var(--shadow-soft); }
 .pet-corner-copy { min-width: 0; }
 .pet-corner-copy h2 { margin: 2px 0 4px; font-size: 17px; letter-spacing: -.025em; }
-.pet-corner-copy > p:last-child { max-width: 390px; margin: 0; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
 .pet-friends { display: grid; grid-template-columns: repeat(3, minmax(74px, 88px)); gap: 9px; }
 .pet-friend { min-width: 0; margin: 0; display: grid; justify-items: center; gap: 4px; }
 .pet-sticker { width: 72px; height: 68px; display: grid; place-items: end center; overflow: hidden; border: 1px solid rgba(208,179,178,.7); border-radius: 50% 50% 44% 44%; background: rgba(255,253,251,.78); box-shadow: 0 3px 10px rgba(73,54,60,.07); }
@@ -272,7 +271,7 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 @media (max-width: 500px) {
   .topbar-actions .secondary-button { width: 38px; overflow: hidden; white-space: nowrap; color: transparent; gap: 0; }.topbar-actions .secondary-button svg { color: var(--ink); flex: 0 0 auto; }
   .intro-row { display: block; }.year-picker { width: max-content; margin-top: 17px; }.stats-grid { grid-template-columns: 1fr; }.stat-coral { grid-column: auto; }.stat-card { min-height: 128px; }
-  .pet-corner { grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; padding: 14px; }.pet-corner-copy { text-align: center; }.pet-corner-copy > p:last-child { margin-inline: auto; }.pet-friends { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }.pet-sticker { width: 61px; height: 58px; }.pet-sticker img { width: 56px; height: 56px; }
+  .pet-corner { grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; padding: 14px; }.pet-corner-copy { text-align: center; }.pet-friends { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }.pet-sticker { width: 61px; height: 58px; }.pet-sticker img { width: 56px; height: 56px; }
   .section-heading { align-items: start; }.filter-tabs button { padding-inline: 7px; }
   .concert-ticket { min-height: 148px; grid-template-columns: 82px 1fr 15px; }.concert-ticket-toggle { grid-template-columns: 82px minmax(0, 1fr); }.poster-orbit { right: 7px; }.ticket-info { padding-right: 61px; }.ticket-info h3 { font-size: 15px; }.ticket-meta span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 145px; }.ticket-footer { gap: 6px; }.row-actions button { width: 27px; height: 27px; }.ticket-actions { right: 23px; }.ticket-details-hint { display: none; }.concert-expenses-panel { margin-inline: 8px; }.concert-expenses-header { display: grid; gap: 12px; padding: 17px 14px 13px; }.concert-expenses-summary { display: flex; justify-content: space-between; align-items: center; text-align: left; }.concert-expense-table { padding-inline: 12px; }
   .concert-information { grid-template-columns: 1fr; padding-inline: 12px; }

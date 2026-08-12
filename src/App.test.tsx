@@ -155,6 +155,7 @@ describe('Walking Through Concerts dashboard', () => {
     expect(within(petCorner).getByRole('img', { name: 'Pet DV V-eri' })).toBeInTheDocument()
     expect(within(petCorner).getByRole('img', { name: 'Pet Kkuru Jam BBH' })).toBeInTheDocument()
     expect(within(petCorner).getByRole('img', { name: 'Pet Tèolaegi Dâu Lá' })).toBeInTheDocument()
+    expect(within(petCorner).queryByText('Ba chiếc pet giữ một góc riêng, luôn xinh mà không che nội dung.')).not.toBeInTheDocument()
   })
 
   it('adapts concert tickets to their own width and wraps long content', () => {

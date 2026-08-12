@@ -350,7 +350,6 @@ function App() {
           <div className="pet-corner-copy">
             <p className="section-kicker">PET CORNER</p>
             <h2>Hội bạn đồng hành</h2>
-            <p>Ba chiếc pet giữ một góc riêng, luôn xinh mà không che nội dung.</p>
           </div>
           <div className="pet-friends">
             {COMPANION_PETS.map((pet) => <figure className="pet-friend" key={pet.name}>
