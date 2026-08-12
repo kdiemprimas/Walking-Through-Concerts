@@ -167,6 +167,11 @@ describe('Walking Through Concerts dashboard', () => {
     expect(styles).toMatch(/@media \(max-width: 360px\)[\s\S]*?\.stat-dual-values\s*{[^}]*grid-template-columns:\s*1fr/)
   })
 
+  it('keeps long city labels above the decorative poster tape', () => {
+    expect(styles).toMatch(/\.tape\s*{[^}]*z-index:\s*0/)
+    expect(styles).toMatch(/\.poster-city\s*{[^}]*z-index:\s*3[^}]*background:/)
+  })
+
   it('switches between concert filters', async () => {
     const user = userEvent.setup()
     render(<App />)
