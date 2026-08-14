@@ -42,6 +42,7 @@ type Concert = {
   status: ConcertStatus
   color: string
   accent: string
+  estimatedBudget: number
   ticketUrl?: string
   relatedInfo?: string
   announcement?: string
@@ -66,7 +67,8 @@ type StoredExpense = Omit<Expense, 'plannedAmount' | 'actualAmount' | 'peopleCou
   peopleCount?: number
   amount?: number
 }
-type StoredData = { concerts: Concert[]; expenses: StoredExpense[] }
+type StoredConcert = Omit<Concert, 'estimatedBudget'> & { estimatedBudget?: number }
+type StoredData = { concerts: StoredConcert[]; expenses: StoredExpense[] }
 type AppPreferences = { displayName: string; tagline: string; budget: number }
 type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | { type: 'report' } | { type: 'settings' } | null
 type ExpenseSort = 'recent-added' | 'date-desc' | 'date-asc' | 'planned-desc' | 'actual-desc'
@@ -92,9 +94,9 @@ const pastelPairs = [
 
 const initialData: AppData = {
   concerts: [
-    { id: 'concert-1', artist: 'SEVENTEEN', tour: 'RIGHT HERE', city: 'Bangkok', date: '2026-02-15', venue: 'Rajamangala Stadium', status: 'upcoming', color: '#ffd1d9', accent: '#7d3047' },
-    { id: 'concert-2', artist: 'DAY6', tour: 'FOREVER YOUNG', city: 'Hồ Chí Minh', date: '2026-05-09', venue: 'SECC', status: 'upcoming', color: '#ffd8bd', accent: '#7a3b24' },
-    { id: 'concert-3', artist: 'KANGDANIEL', tour: 'FOLLOW AGAIN', city: 'Seoul', date: '2025-10-13', venue: 'KSPO Dome', status: 'past', color: '#f5c7d8', accent: '#69324a' },
+    { id: 'concert-1', artist: 'SEVENTEEN', tour: 'RIGHT HERE', city: 'Bangkok', date: '2026-02-15', venue: 'Rajamangala Stadium', status: 'upcoming', color: '#ffd1d9', accent: '#7d3047', estimatedBudget: 20_000_000 },
+    { id: 'concert-2', artist: 'DAY6', tour: 'FOREVER YOUNG', city: 'Hồ Chí Minh', date: '2026-05-09', venue: 'SECC', status: 'upcoming', color: '#ffd8bd', accent: '#7a3b24', estimatedBudget: 15_000_000 },
+    { id: 'concert-3', artist: 'KANGDANIEL', tour: 'FOLLOW AGAIN', city: 'Seoul', date: '2025-10-13', venue: 'KSPO Dome', status: 'past', color: '#f5c7d8', accent: '#69324a', estimatedBudget: 50_000_000 },
   ],
   expenses: [
     { id: 'expense-1', name: 'Vé VIP Soundcheck', concertId: 'concert-1', category: 'Vé concert', plannedAmount: 8_000_000, actualAmount: 7_850_000, peopleCount: 1, date: '2026-08-06' },
@@ -166,8 +168,9 @@ const isSafeExternalUrl = (value: string) => {
   }
 }
 
-const normalizeConcert = (concert: Concert): Concert => ({
+const normalizeConcert = (concert: StoredConcert): Concert => ({
   ...concert,
+  estimatedBudget: Number.isFinite(concert.estimatedBudget) ? Math.min(1_000_000_000_000, Math.max(0, Math.round(Number(concert.estimatedBudget)))) : 0,
   ticketUrl: typeof concert.ticketUrl === 'string' && isSafeExternalUrl(concert.ticketUrl.trim()) ? concert.ticketUrl.trim() : undefined,
   relatedInfo: typeof concert.relatedInfo === 'string' && concert.relatedInfo.trim() ? concert.relatedInfo.trim() : undefined,
   announcement: typeof concert.announcement === 'string' && concert.announcement.trim() ? concert.announcement.trim() : undefined,
@@ -471,7 +474,7 @@ function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddE
     <article className="concert-ticket" style={{ '--ticket-color': concert.color, '--ticket-accent': concert.accent } as CSSProperties}>
       <button type="button" className="concert-ticket-toggle" aria-label={`${isExpanded ? 'Ẩn' : 'Xem'} chi phí ${concert.artist}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={onToggle}>
         <div className="poster" aria-hidden="true"><span className="tape" /><div className="poster-orbit" /><span className="poster-city">{concert.city}</span><strong>{concert.artist}</strong><small>LIVE · {concert.date.slice(0, 4)}</small></div>
-        <div className="ticket-info"><div className="ticket-status"><span className={concert.status}>{concert.status === 'upcoming' ? 'SẮP TỚI' : 'ĐÃ ĐI'}</span></div><p className="artist-name">{concert.artist}</p><h3>{concert.tour}</h3><div className="ticket-meta"><span><CalendarDays size={15} />{formatDate(concert.date)}</span><span><MapPin size={15} />{concert.venue}</span></div><div className="ticket-footer"><span className="ticket-total"><small>DỰ TÍNH</small><strong>{formatMoney(totals.planned)}</strong></span><span className="ticket-total actual"><small>THỰC TẾ</small><strong>{formatMoney(totals.actual)}</strong></span><span className="ticket-details-hint">{isExpanded ? 'Ẩn chi phí' : 'Xem chi phí'} <ChevronDown size={15} aria-hidden="true" /></span></div></div>
+        <div className="ticket-info"><div className="ticket-status"><span className={concert.status}>{concert.status === 'upcoming' ? 'SẮP TỚI' : 'ĐÃ ĐI'}</span></div><p className="artist-name">{concert.artist}</p><h3>{concert.tour}</h3><div className="ticket-meta"><span><CalendarDays size={15} />{formatDate(concert.date)}</span><span><MapPin size={15} />{concert.venue}</span></div><div className="ticket-footer"><span className="ticket-total budget"><small>BUDGET</small><strong>{formatMoney(concert.estimatedBudget)}</strong></span><span className="ticket-total"><small>DỰ TÍNH</small><strong>{formatMoney(totals.planned)}</strong></span><span className="ticket-total actual"><small>THỰC TẾ</small><strong>{formatMoney(totals.actual)}</strong></span><span className="ticket-details-hint">{isExpanded ? 'Ẩn chi phí' : 'Xem chi phí'} <ChevronDown size={15} aria-hidden="true" /></span></div></div>
       </button>
       <div className="row-actions ticket-actions"><button aria-label={`Chỉnh sửa ${concert.artist}`} onClick={onEdit}><Pencil size={16} /></button><button aria-label={`Xóa ${concert.artist}`} onClick={onDelete}><Trash2 size={16} /></button></div>
       <div className="ticket-code" aria-hidden="true">{Array.from({ length: 10 }, (_, index) => <span key={index} />)}</div>
@@ -479,7 +482,7 @@ function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddE
     {isExpanded && <section id={detailsId} className="concert-expenses-panel" role="region" aria-labelledby={titleId}>
       <div className="concert-expenses-header">
         <div><p className="section-kicker">CHI TIẾT CHI TIÊU</p><h3 id={titleId}>Chi phí của {concert.artist}</h3><span>{expenses.length} khoản chi · {concert.city}</span></div>
-        <div className="concert-expenses-summary"><div><span>Dự tính <strong>{formatMoney(totals.planned)}</strong></span><span>Thực tế <strong>{formatMoney(totals.actual)}</strong></span></div><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
+        <div className="concert-expenses-summary"><div><span>Budget <strong>{formatMoney(concert.estimatedBudget)}</strong></span><span>Dự tính <strong>{formatMoney(totals.planned)}</strong></span><span>Thực tế <strong>{formatMoney(totals.actual)}</strong></span></div><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
       </div>
       {hasConcertInformation && <div className="concert-information" aria-label={`Thông tin concert ${concert.artist}`}>
         {concert.announcement && <div className="concert-announcement" role="note"><BellRing size={18} aria-hidden="true" /><div><strong>Thông báo / lưu ý</strong><p>{concert.announcement}</p></div></div>}
@@ -571,10 +574,12 @@ function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () =
   const [venue, setVenue] = useState(item?.venue ?? '')
   const [date, setDate] = useState(item?.date ?? '2026-12-20')
   const [status, setStatus] = useState<ConcertStatus>(item?.status ?? 'upcoming')
+  const [estimatedBudget, setEstimatedBudget] = useState(item?.estimatedBudget ? String(item.estimatedBudget) : '')
   const [ticketUrl, setTicketUrl] = useState(item?.ticketUrl ?? '')
   const [relatedInfo, setRelatedInfo] = useState(item?.relatedInfo ?? '')
   const [announcement, setAnnouncement] = useState(item?.announcement ?? '')
   const [error, setError] = useState('')
+  const [budgetError, setBudgetError] = useState('')
   const [ticketUrlError, setTicketUrlError] = useState('')
   const dialogRef = useAccessibleModal(onClose)
   const isEditing = Boolean(item)
@@ -582,6 +587,15 @@ function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () =
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!artist.trim()) { setError('Vui lòng nhập tên nghệ sĩ'); return }
+    const parsedBudget = estimatedBudget.trim() ? Number(estimatedBudget) : 0
+    if (!Number.isFinite(parsedBudget) || parsedBudget < 0) {
+      setBudgetError('Budget không thể là số âm')
+      return
+    }
+    if (parsedBudget > 1_000_000_000_000) {
+      setBudgetError('Budget tối đa là 1.000.000.000.000 VND')
+      return
+    }
     const cleanTicketUrl = ticketUrl.trim()
     if (cleanTicketUrl && !isSafeExternalUrl(cleanTicketUrl)) {
       setTicketUrlError('Link bán vé phải bắt đầu bằng http:// hoặc https://')
@@ -598,13 +612,14 @@ function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () =
       status,
       color: pair[0],
       accent: pair[1],
+      estimatedBudget: Math.round(parsedBudget),
       ticketUrl: cleanTicketUrl || undefined,
       relatedInfo: relatedInfo.trim() || undefined,
       announcement: announcement.trim() || undefined,
     })
   }
 
-  return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div><div className="form-field"><label htmlFor="concert-ticket-url">Link bán vé</label><input id="concert-ticket-url" type="url" value={ticketUrl} onChange={(event) => { setTicketUrl(event.target.value); setTicketUrlError('') }} placeholder="https://ticketbox.vn/..." aria-invalid={Boolean(ticketUrlError)} aria-describedby={ticketUrlError ? 'concert-ticket-url-error' : undefined} />{ticketUrlError && <span id="concert-ticket-url-error" className="field-error" role="alert">{ticketUrlError}</span>}</div><div className="form-field"><label htmlFor="concert-related-info">Thông tin liên quan</label><textarea id="concert-related-info" value={relatedInfo} onChange={(event) => setRelatedInfo(event.target.value)} placeholder="Ví dụ: thời gian mở bán, quyền lợi vé, hướng dẫn check-in..." /></div><div className="form-field"><label htmlFor="concert-announcement">Thông báo / lưu ý</label><textarea id="concert-announcement" value={announcement} onChange={(event) => setAnnouncement(event.target.value)} placeholder="Ví dụ: mang CCCD, giờ tập trung, quy định vật dụng..." /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} /></form></ModalFrame>
+  return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div><div className="form-field"><label htmlFor="concert-estimated-budget">Tổng budget dự tính</label><div className="money-input"><input id="concert-estimated-budget" type="number" min="0" max="1000000000000" step="1000" value={estimatedBudget} onChange={(event) => { setEstimatedBudget(event.target.value); setBudgetError('') }} placeholder="Ví dụ: 25000000" aria-invalid={Boolean(budgetError)} aria-describedby={budgetError ? 'concert-budget-error' : 'concert-budget-hint'} /><span>VND</span></div><small id="concert-budget-hint" className="field-hint">Ngân sách dự kiến cho toàn bộ concert.</small>{budgetError && <span id="concert-budget-error" className="field-error" role="alert">{budgetError}</span>}</div><div className="form-field"><label htmlFor="concert-ticket-url">Link bán vé</label><input id="concert-ticket-url" type="url" value={ticketUrl} onChange={(event) => { setTicketUrl(event.target.value); setTicketUrlError('') }} placeholder="https://ticketbox.vn/..." aria-invalid={Boolean(ticketUrlError)} aria-describedby={ticketUrlError ? 'concert-ticket-url-error' : undefined} />{ticketUrlError && <span id="concert-ticket-url-error" className="field-error" role="alert">{ticketUrlError}</span>}</div><div className="form-field"><label htmlFor="concert-related-info">Thông tin liên quan</label><textarea id="concert-related-info" value={relatedInfo} onChange={(event) => setRelatedInfo(event.target.value)} placeholder="Ví dụ: thời gian mở bán, quyền lợi vé, hướng dẫn check-in..." /></div><div className="form-field"><label htmlFor="concert-announcement">Thông báo / lưu ý</label><textarea id="concert-announcement" value={announcement} onChange={(event) => setAnnouncement(event.target.value)} placeholder="Ví dụ: mang CCCD, giờ tập trung, quy định vật dụng..." /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} /></form></ModalFrame>
 }
 
 function ReportModal({ expenses, concerts, totalPlanned, totalActual, budget, periodLabel, onClose }: { expenses: Expense[]; concerts: Concert[]; totalPlanned: number; totalActual: number; budget: number; periodLabel: string; onClose: () => void }) {

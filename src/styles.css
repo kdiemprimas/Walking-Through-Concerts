@@ -154,7 +154,8 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 .ticket-total { display: grid; gap: 2px; }
 .ticket-total small { font-size: 9px; }
 .ticket-total strong { color: var(--ink); font-family: inherit; font-variant-numeric: tabular-nums; letter-spacing: -.01em; white-space: nowrap; }
-.ticket-total.actual { padding-left: 9px; border-left: 1px solid var(--border); }
+.ticket-total + .ticket-total { padding-left: 9px; border-left: 1px solid var(--border); }
+.ticket-total.budget strong { color: var(--accent-strong); }
 .ticket-details-hint { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--accent-strong) !important; font-family: inherit !important; font-weight: 800 !important; letter-spacing: 0 !important; }
 .ticket-details-hint svg { transition: transform .2s ease; }
 .concert-entry.is-open .ticket-details-hint svg { transform: rotate(180deg); }

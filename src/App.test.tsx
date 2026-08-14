@@ -471,6 +471,39 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('THE GOLDEN HOUR')).toBeInTheDocument()
   })
 
+  it('captures, displays and persists the estimated budget for a concert', async () => {
+    const user = userEvent.setup()
+    const view = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /thêm concert/i }))
+    const createDialog = screen.getByRole('dialog', { name: /thêm concert mới/i })
+    await user.type(within(createDialog).getByLabelText('Nghệ sĩ'), 'IU')
+    await user.type(within(createDialog).getByLabelText('Tổng budget dự tính'), '25000000')
+    await user.click(within(createDialog).getByRole('button', { name: 'Lưu concert' }))
+
+    expect(screen.getByText('25.000.000 ₫')).toBeInTheDocument()
+    const saved = JSON.parse(localStorage.getItem('walking-through-concerts-data-v2') ?? '{}')
+    expect(saved.concerts.find((concert: { artist: string }) => concert.artist === 'IU')).toMatchObject({ estimatedBudget: 25_000_000 })
+
+    view.unmount()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa IU' }))
+    expect(within(screen.getByRole('dialog', { name: /chỉnh sửa concert/i })).getByLabelText('Tổng budget dự tính')).toHaveValue(25_000_000)
+  })
+
+  it('rejects a negative concert budget', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /thêm concert/i }))
+    const dialog = screen.getByRole('dialog', { name: /thêm concert mới/i })
+    await user.type(within(dialog).getByLabelText('Nghệ sĩ'), 'IU')
+    await user.type(within(dialog).getByLabelText('Tổng budget dự tính'), '-1')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu concert' }))
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Budget không thể là số âm')
+  })
+
   it('saves ticket links and concert information, then shows them in the concert details', async () => {
     const user = userEvent.setup()
     render(<App />)
