@@ -1,10 +1,23 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { sites } from '@openai/sites-vite-plugin'
+import type { Plugin } from 'vite'
+
+const staticSiteWorker: Plugin = {
+  name: 'static-site-worker',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'server/index.js',
+      source: 'export default { fetch(request, env) { return env.ASSETS.fetch(request) } }',
+    })
+  },
+}
 
 export default defineConfig({
   base: './',
-  plugins: [react(), sites()],
+  plugins: [react(), sites(), staticSiteWorker],
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
