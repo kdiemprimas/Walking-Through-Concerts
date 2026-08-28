@@ -56,6 +56,7 @@ type Expense = {
   customCategory?: string
   plannedAmount: number
   actualAmount: number
+  depositAmount?: number
   peopleCount: number
   date: string
 }
@@ -139,6 +140,7 @@ const normalizeExpense = (expense: StoredExpense): Expense => {
     customCategory: typeof expense.customCategory === 'string' && expense.customCategory.trim() ? expense.customCategory.trim() : undefined,
     plannedAmount: Number.isFinite(expense.plannedAmount) ? Math.max(0, Number(expense.plannedAmount)) : legacyAmount,
     actualAmount: Number.isFinite(expense.actualAmount) ? Math.max(0, Number(expense.actualAmount)) : legacyAmount,
+    depositAmount: Number.isFinite(expense.depositAmount) ? Math.max(0, Number(expense.depositAmount)) : 0,
     peopleCount: Math.min(20, Math.max(1, Math.round(Number(expense.peopleCount) || 1))),
     date: expense.date,
   }
@@ -156,7 +158,7 @@ const loadData = (): AppData => {
   }
 }
 
-const getPlannedTotal = (expense: Expense) => expense.plannedAmount * expense.peopleCount
+const getPlannedTotal = (expense: Expense) => expense.plannedAmount * expense.peopleCount + (expense.depositAmount ?? 0)
 const getActualTotal = (expense: Expense) => expense.actualAmount * expense.peopleCount
 const getCategoryLabel = (expense: Expense) => expense.category === 'Khác' && expense.customCategory ? expense.customCategory : expense.category
 const isSafeExternalUrl = (value: string) => {
@@ -177,6 +179,19 @@ const normalizeConcert = (concert: StoredConcert): Concert => ({
 })
 
 const formatMoney = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)} ₫`
+const normalizeMoneyInput = (value: string) => {
+  const isNegative = value.trimStart().startsWith('-')
+  const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+  if (!digits) return isNegative ? '-' : ''
+  return `${isNegative ? '-' : ''}${digits}`
+}
+const formatMoneyInput = (value: string) => {
+  const normalized = normalizeMoneyInput(value)
+  if (!normalized || normalized === '-') return normalized
+  const isNegative = normalized.startsWith('-')
+  const digits = isNegative ? normalized.slice(1) : normalized
+  return `${isNegative ? '-' : ''}${digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`
+}
 const formatCompact = (value: number) => `${(value / 1_000_000).toFixed(value % 1_000_000 ? 1 : 0)}M`
 const formatDate = (value: string) => value.split('-').reverse().join('.')
 const formatExpenseDate = (value: string) => new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: 'short' }).format(new Date(`${value}T00:00:00`))
@@ -193,6 +208,15 @@ function usePagination(itemCount: number, pageSize = EXPENSES_PER_PAGE) {
   const currentPage = Math.min(page, totalPages)
   const startIndex = (currentPage - 1) * pageSize
   return { currentPage, totalPages, startIndex, endIndex: startIndex + pageSize, setPage }
+}
+
+type MoneyInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> & {
+  value: string
+  onValueChange: (value: string) => void
+}
+
+function MoneyInput({ value, onValueChange, ...inputProps }: MoneyInputProps) {
+  return <div className="money-input"><input {...inputProps} type="text" inputMode="numeric" value={formatMoneyInput(value)} onChange={(event) => onValueChange(normalizeMoneyInput(event.target.value))} /><span>VND</span></div>
 }
 
 function App() {
@@ -544,6 +568,7 @@ function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { i
   const [name, setName] = useState(item?.name ?? '')
   const [plannedAmount, setPlannedAmount] = useState(String(item?.plannedAmount ?? 1_200_000))
   const [actualAmount, setActualAmount] = useState(String(item?.actualAmount ?? 0))
+  const [depositAmount, setDepositAmount] = useState(String(item?.depositAmount ?? 0))
   const [peopleCount, setPeopleCount] = useState(String(item?.peopleCount ?? 1))
   const [category, setCategory] = useState<Category>(item?.category ?? 'Vé concert')
   const [customCategory, setCustomCategory] = useState(item?.customCategory ?? '')
@@ -558,13 +583,30 @@ function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { i
     event.preventDefault()
     if (!name.trim()) { setError('Vui lòng nhập tên khoản chi'); return }
     if (category === 'Khác' && !customCategory.trim()) { setCustomCategoryError('Vui lòng nhập tên danh mục khác'); return }
-    onSave({ id: item?.id ?? `expense-${Date.now()}`, name: name.trim(), plannedAmount: Number(plannedAmount) || 0, actualAmount: Number(actualAmount) || 0, peopleCount: Number(peopleCount) || 1, category, customCategory: category === 'Khác' ? customCategory.trim() : undefined, concertId, date })
+    onSave({ id: item?.id ?? `expense-${Date.now()}`, name: name.trim(), plannedAmount: Number(plannedAmount) || 0, actualAmount: Number(actualAmount) || 0, depositAmount: Number(depositAmount) || 0, peopleCount: Number(peopleCount) || 1, category, customCategory: category === 'Khác' ? customCategory.trim() : undefined, concertId, date })
   }
 
-  const plannedTotal = (Number(plannedAmount) || 0) * (Number(peopleCount) || 1)
+  const plannedTotal = (Number(plannedAmount) || 0) * (Number(peopleCount) || 1) + (Number(depositAmount) || 0)
   const actualTotal = (Number(actualAmount) || 0) * (Number(peopleCount) || 1)
 
-  return <ModalFrame title={isEditing ? 'Chỉnh sửa chi phí' : 'Thêm chi phí mới'} kicker="GHI LẠI KỶ NIỆM" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-field"><label className="required-label" htmlFor="expense-name">Tên khoản chi</label><input id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />{error && <span id="expense-error" className="field-error" role="alert">{error}</span>}</div><div className="form-row expense-money-row"><div className="form-field"><label htmlFor="expense-planned-amount">Dự tính / người</label><div className="money-input"><input id="expense-planned-amount" type="number" min="0" value={plannedAmount} onChange={(event) => setPlannedAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field"><label htmlFor="expense-actual-amount">Thực tế / người</label><div className="money-input"><input id="expense-actual-amount" type="number" min="0" value={actualAmount} onChange={(event) => setActualAmount(event.target.value)} /><span>VND</span></div></div><div className="form-field people-field"><label htmlFor="expense-people">Số người</label><select id="expense-people" value={peopleCount} onChange={(event) => setPeopleCount(event.target.value)}>{Array.from({ length: 20 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} người</option>)}</select></div></div><div className="expense-calculation" role="status" aria-label="Tổng chi phí đã tính" aria-live="polite"><div><span>Tổng dự tính</span><strong>{formatMoney(plannedTotal)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(actualTotal)}</strong></div></div><div className="form-row"><div className="form-field"><label htmlFor="expense-category">Danh mục</label><select id="expense-category" value={category} onChange={(event) => { setCategory(event.target.value as Category); setCustomCategoryError('') }}>{categories.map((value) => <option key={value}>{value}</option>)}</select></div><div className="form-field"><label htmlFor="expense-concert">Concert</label><select id="expense-concert" value={concertId} onChange={(event) => setConcertId(event.target.value)}>{concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></div></div>{category === 'Khác' && <div className="form-field custom-category-field"><label className="required-label" htmlFor="expense-custom-category">Tên danh mục khác</label><input id="expense-custom-category" value={customCategory} onChange={(event) => { setCustomCategory(event.target.value); setCustomCategoryError('') }} placeholder="Ví dụ: Phí đổi vé, gửi hành lý..." aria-required="true" aria-invalid={Boolean(customCategoryError)} aria-describedby={customCategoryError ? 'custom-category-error' : undefined} />{customCategoryError && <span id="custom-category-error" className="field-error" role="alert">{customCategoryError}</span>}</div>}<div className="form-field"><label htmlFor="expense-date">Ngày thanh toán</label><input id="expense-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu chi phí'} /></form></ModalFrame>
+  return <ModalFrame title={isEditing ? 'Chỉnh sửa chi phí' : 'Thêm chi phí mới'} kicker="GHI LẠI KỶ NIỆM" onClose={onClose} dialogRef={dialogRef}>
+    <form onSubmit={submit} noValidate>
+      <div className="form-field"><label className="required-label" htmlFor="expense-name">Tên khoản chi</label><input id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />{error && <span id="expense-error" className="field-error" role="alert">{error}</span>}</div>
+      <div className="form-row expense-money-row">
+        <div className="form-field"><label htmlFor="expense-planned-amount">Dự tính / người</label><MoneyInput id="expense-planned-amount" value={plannedAmount} onValueChange={setPlannedAmount} /></div>
+        <div className="form-field"><label htmlFor="expense-actual-amount">Thực tế / người</label><MoneyInput id="expense-actual-amount" value={actualAmount} onValueChange={setActualAmount} /></div>
+        <div className="form-field people-field"><label htmlFor="expense-people">Số người</label><select id="expense-people" value={peopleCount} onChange={(event) => setPeopleCount(event.target.value)}>{Array.from({ length: 20 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} người</option>)}</select></div>
+      </div>
+      <div className="deposit-summary-row">
+        <div className="form-field"><label htmlFor="expense-deposit-amount">Cọc tiền</label><MoneyInput id="expense-deposit-amount" value={depositAmount} onValueChange={setDepositAmount} /></div>
+        <div className="expense-calculation" role="status" aria-label="Tổng chi phí đã tính" aria-live="polite"><div><span>Tổng dự tính</span><strong>{formatMoney(plannedTotal)}</strong></div><div><span>Tổng thực tế</span><strong>{formatMoney(actualTotal)}</strong></div></div>
+      </div>
+      <div className="form-row"><div className="form-field"><label htmlFor="expense-category">Danh mục</label><select id="expense-category" value={category} onChange={(event) => { setCategory(event.target.value as Category); setCustomCategoryError('') }}>{categories.map((value) => <option key={value}>{value}</option>)}</select></div><div className="form-field"><label htmlFor="expense-concert">Concert</label><select id="expense-concert" value={concertId} onChange={(event) => setConcertId(event.target.value)}>{concerts.map((concert) => <option key={concert.id} value={concert.id}>{concert.artist} · {concert.city}</option>)}</select></div></div>
+      {category === 'Khác' && <div className="form-field custom-category-field"><label className="required-label" htmlFor="expense-custom-category">Tên danh mục khác</label><input id="expense-custom-category" value={customCategory} onChange={(event) => { setCustomCategory(event.target.value); setCustomCategoryError('') }} placeholder="Ví dụ: Phí đổi vé, gửi hành lý..." aria-required="true" aria-invalid={Boolean(customCategoryError)} aria-describedby={customCategoryError ? 'custom-category-error' : undefined} />{customCategoryError && <span id="custom-category-error" className="field-error" role="alert">{customCategoryError}</span>}</div>}
+      <div className="form-field"><label htmlFor="expense-date">Ngày thanh toán</label><input id="expense-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div>
+      <ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu chi phí'} />
+    </form>
+  </ModalFrame>
 }
 
 function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () => void; onSave: (concert: Concert) => void }) {
@@ -619,7 +661,18 @@ function ConcertModal({ item, onClose, onSave }: { item?: Concert; onClose: () =
     })
   }
 
-  return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div><div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div><div className="form-field"><label htmlFor="concert-estimated-budget">Tổng budget dự tính</label><div className="money-input"><input id="concert-estimated-budget" type="number" min="0" max="1000000000000" step="1000" value={estimatedBudget} onChange={(event) => { setEstimatedBudget(event.target.value); setBudgetError('') }} placeholder="Ví dụ: 25000000" aria-invalid={Boolean(budgetError)} aria-describedby={budgetError ? 'concert-budget-error' : 'concert-budget-hint'} /><span>VND</span></div><small id="concert-budget-hint" className="field-hint">Ngân sách dự kiến cho toàn bộ concert.</small>{budgetError && <span id="concert-budget-error" className="field-error" role="alert">{budgetError}</span>}</div><div className="form-field"><label htmlFor="concert-ticket-url">Link bán vé</label><input id="concert-ticket-url" type="url" value={ticketUrl} onChange={(event) => { setTicketUrl(event.target.value); setTicketUrlError('') }} placeholder="https://ticketbox.vn/..." aria-invalid={Boolean(ticketUrlError)} aria-describedby={ticketUrlError ? 'concert-ticket-url-error' : undefined} />{ticketUrlError && <span id="concert-ticket-url-error" className="field-error" role="alert">{ticketUrlError}</span>}</div><div className="form-field"><label htmlFor="concert-related-info">Thông tin liên quan</label><textarea id="concert-related-info" value={relatedInfo} onChange={(event) => setRelatedInfo(event.target.value)} placeholder="Ví dụ: thời gian mở bán, quyền lợi vé, hướng dẫn check-in..." /></div><div className="form-field"><label htmlFor="concert-announcement">Thông báo / lưu ý</label><textarea id="concert-announcement" value={announcement} onChange={(event) => setAnnouncement(event.target.value)} placeholder="Ví dụ: mang CCCD, giờ tập trung, quy định vật dụng..." /></div><ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} /></form></ModalFrame>
+  return <ModalFrame title={isEditing ? 'Chỉnh sửa concert' : 'Thêm concert mới'} kicker="LỊCH TRÌNH MỚI" onClose={onClose} dialogRef={dialogRef}>
+    <form onSubmit={submit} noValidate>
+      <div className="form-row"><div className="form-field"><label className="required-label" htmlFor="concert-artist">Nghệ sĩ</label><input id="concert-artist" value={artist} onChange={(event) => { setArtist(event.target.value); setError('') }} aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'concert-error' : undefined} autoFocus />{error && <span id="concert-error" className="field-error" role="alert">{error}</span>}</div><div className="form-field"><label htmlFor="concert-tour">Tên tour</label><input id="concert-tour" value={tour} onChange={(event) => setTour(event.target.value)} /></div></div>
+      <div className="form-row"><div className="form-field"><label htmlFor="concert-city">Thành phố</label><input id="concert-city" value={city} onChange={(event) => setCity(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-venue">Địa điểm</label><input id="concert-venue" value={venue} onChange={(event) => setVenue(event.target.value)} /></div></div>
+      <div className="form-row"><div className="form-field"><label htmlFor="concert-date">Ngày diễn</label><input id="concert-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div><div className="form-field"><label htmlFor="concert-status">Trạng thái</label><select id="concert-status" value={status} onChange={(event) => setStatus(event.target.value as ConcertStatus)}><option value="upcoming">Sắp tới</option><option value="past">Đã đi</option></select></div></div>
+      <div className="form-field"><label htmlFor="concert-estimated-budget">Tổng budget dự tính</label><MoneyInput id="concert-estimated-budget" value={estimatedBudget} onValueChange={(value) => { setEstimatedBudget(value); setBudgetError('') }} placeholder="Ví dụ: 25.000.000" aria-invalid={Boolean(budgetError)} aria-describedby={budgetError ? 'concert-budget-error' : 'concert-budget-hint'} /><small id="concert-budget-hint" className="field-hint">Ngân sách dự kiến cho toàn bộ concert.</small>{budgetError && <span id="concert-budget-error" className="field-error" role="alert">{budgetError}</span>}</div>
+      <div className="form-field"><label htmlFor="concert-ticket-url">Link bán vé</label><input id="concert-ticket-url" type="url" value={ticketUrl} onChange={(event) => { setTicketUrl(event.target.value); setTicketUrlError('') }} placeholder="https://ticketbox.vn/..." aria-invalid={Boolean(ticketUrlError)} aria-describedby={ticketUrlError ? 'concert-ticket-url-error' : undefined} />{ticketUrlError && <span id="concert-ticket-url-error" className="field-error" role="alert">{ticketUrlError}</span>}</div>
+      <div className="form-field"><label htmlFor="concert-related-info">Thông tin liên quan</label><textarea id="concert-related-info" value={relatedInfo} onChange={(event) => setRelatedInfo(event.target.value)} placeholder="Ví dụ: thời gian mở bán, quyền lợi vé, hướng dẫn check-in..." /></div>
+      <div className="form-field"><label htmlFor="concert-announcement">Thông báo / lưu ý</label><textarea id="concert-announcement" value={announcement} onChange={(event) => setAnnouncement(event.target.value)} placeholder="Ví dụ: mang CCCD, giờ tập trung, quy định vật dụng..." /></div>
+      <ModalActions onClose={onClose} submitLabel={isEditing ? 'Lưu thay đổi' : 'Lưu concert'} />
+    </form>
+  </ModalFrame>
 }
 
 function ReportModal({ expenses, concerts, totalPlanned, totalActual, budget, periodLabel, onClose }: { expenses: Expense[]; concerts: Concert[]; totalPlanned: number; totalActual: number; budget: number; periodLabel: string; onClose: () => void }) {
@@ -657,7 +710,14 @@ function SettingsModal({ preferences, onClose, onSave }: { preferences: AppPrefe
     onSave({ displayName: cleanName.slice(0, 60), tagline: (cleanTagline || DEFAULT_PREFERENCES.tagline).slice(0, 100), budget: Math.round(parsedBudget) })
   }
 
-  return <ModalFrame title="Cài đặt" kicker="CÁ NHÂN HÓA" onClose={onClose} dialogRef={dialogRef}><form onSubmit={submit} noValidate><div className="form-field"><label className="required-label" htmlFor="settings-display-name">Tên hiển thị</label><input id="settings-display-name" value={displayName} maxLength={60} onChange={(event) => { setDisplayName(event.target.value); setNameError('') }} aria-required="true" aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'settings-name-error' : undefined} autoFocus />{nameError && <span id="settings-name-error" className="field-error" role="alert">{nameError}</span>}</div><div className="form-field"><label htmlFor="settings-tagline">Dòng giới thiệu</label><input id="settings-tagline" value={tagline} maxLength={100} onChange={(event) => setTagline(event.target.value)} placeholder="Ví dụ: concert lover" /></div><div className="form-field"><label className="required-label" htmlFor="settings-budget">Ngân sách năm</label><div className="money-input"><input id="settings-budget" type="number" min="1" max="1000000000000" step="1000" value={budget} onChange={(event) => { setBudget(event.target.value); setBudgetError('') }} aria-required="true" aria-invalid={Boolean(budgetError)} aria-describedby={budgetError ? 'settings-budget-error' : 'settings-budget-hint'} /><span>VND</span></div><small id="settings-budget-hint" className="field-hint">Ngân sách được dùng để tính số tiền còn lại trên trang tổng quan.</small>{budgetError && <span id="settings-budget-error" className="field-error" role="alert">{budgetError}</span>}</div><ModalActions onClose={onClose} submitLabel="Lưu cài đặt" /></form></ModalFrame>
+  return <ModalFrame title="Cài đặt" kicker="CÁ NHÂN HÓA" onClose={onClose} dialogRef={dialogRef}>
+    <form onSubmit={submit} noValidate>
+      <div className="form-field"><label className="required-label" htmlFor="settings-display-name">Tên hiển thị</label><input id="settings-display-name" value={displayName} maxLength={60} onChange={(event) => { setDisplayName(event.target.value); setNameError('') }} aria-required="true" aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'settings-name-error' : undefined} autoFocus />{nameError && <span id="settings-name-error" className="field-error" role="alert">{nameError}</span>}</div>
+      <div className="form-field"><label htmlFor="settings-tagline">Dòng giới thiệu</label><input id="settings-tagline" value={tagline} maxLength={100} onChange={(event) => setTagline(event.target.value)} placeholder="Ví dụ: concert lover" /></div>
+      <div className="form-field"><label className="required-label" htmlFor="settings-budget">Ngân sách năm</label><MoneyInput id="settings-budget" value={budget} onValueChange={(value) => { setBudget(value); setBudgetError('') }} aria-required="true" aria-invalid={Boolean(budgetError)} aria-describedby={budgetError ? 'settings-budget-error' : 'settings-budget-hint'} /><small id="settings-budget-hint" className="field-hint">Ngân sách được dùng để tính số tiền còn lại trên trang tổng quan.</small>{budgetError && <span id="settings-budget-error" className="field-error" role="alert">{budgetError}</span>}</div>
+      <ModalActions onClose={onClose} submitLabel="Lưu cài đặt" />
+    </form>
+  </ModalFrame>
 }
 
 function ModalFrame({ title, kicker, onClose, dialogRef, children }: { title: string; kicker: string; onClose: () => void; dialogRef: React.RefObject<HTMLDivElement | null>; children: React.ReactNode }) {

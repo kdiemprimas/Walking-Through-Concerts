@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@eslint/js": "latest",
+    "@openai/sites-vite-plugin": "^0.2.0",
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@testing-library/user-event": "latest",

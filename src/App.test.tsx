@@ -82,6 +82,39 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText(/120\.000\.000 ₫/)).toBeInTheDocument()
   })
 
+  it('formats every money field with Vietnamese thousand separators while typing', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Cài đặt' }))
+    const settings = screen.getByRole('dialog', { name: 'Cài đặt' })
+    const yearlyBudget = within(settings).getByLabelText('Ngân sách năm')
+    expect(yearlyBudget).toHaveValue('90.000.000')
+    await user.clear(yearlyBudget)
+    await user.type(yearlyBudget, '120000000')
+    expect(yearlyBudget).toHaveValue('120.000.000')
+    await user.click(within(settings).getByRole('button', { name: 'Đóng' }))
+
+    await user.click(screen.getByRole('button', { name: /thêm chi phí/i }))
+    const expenseDialog = screen.getByRole('dialog', { name: /thêm chi phí mới/i })
+    const plannedAmount = within(expenseDialog).getByLabelText('Dự tính / người')
+    const actualAmount = within(expenseDialog).getByLabelText('Thực tế / người')
+    expect(plannedAmount).toHaveValue('1.200.000')
+    await user.clear(plannedAmount)
+    await user.type(plannedAmount, '25000000')
+    await user.clear(actualAmount)
+    await user.type(actualAmount, '24750000')
+    expect(plannedAmount).toHaveValue('25.000.000')
+    expect(actualAmount).toHaveValue('24.750.000')
+    await user.click(within(expenseDialog).getByRole('button', { name: 'Đóng' }))
+
+    await user.click(screen.getByRole('button', { name: /thêm concert/i }))
+    const concertDialog = screen.getByRole('dialog', { name: /thêm concert mới/i })
+    const concertBudget = within(concertDialog).getByLabelText('Tổng budget dự tính')
+    await user.type(concertBudget, '20000000')
+    expect(concertBudget).toHaveValue('20.000.000')
+  })
+
   it('opens settings from the mobile personal navigation and validates the budget', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -423,6 +456,34 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('3 người')).toBeInTheDocument()
   })
 
+  it('adds a one-time deposit to the planned total and persists it', async () => {
+    const user = userEvent.setup()
+    const view = render(<App />)
+    await user.click(screen.getByRole('button', { name: /thêm chi phí/i }))
+    const dialog = screen.getByRole('dialog', { name: /thêm chi phí mới/i })
+    await user.type(within(dialog).getByLabelText('Tên khoản chi'), 'Khách sạn có cọc')
+    await user.clear(within(dialog).getByLabelText('Dự tính / người'))
+    await user.type(within(dialog).getByLabelText('Dự tính / người'), '1000000')
+    await user.clear(within(dialog).getByLabelText('Thực tế / người'))
+    await user.type(within(dialog).getByLabelText('Thực tế / người'), '1200000')
+    await user.selectOptions(within(dialog).getByLabelText('Số người'), '3')
+    await user.type(within(dialog).getByLabelText('Cọc tiền'), '500000')
+
+    const calculation = within(dialog).getByRole('status', { name: 'Tổng chi phí đã tính' })
+    expect(within(calculation).getByText('3.500.000 ₫')).toBeInTheDocument()
+    expect(within(calculation).getByText('3.600.000 ₫')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu chi phí' }))
+    expect(screen.getByText('30.000.000 ₫')).toBeInTheDocument()
+    const saved = JSON.parse(localStorage.getItem('walking-through-concerts-data-v2') ?? '{}')
+    expect(saved.expenses.find((expense: { name: string }) => expense.name === 'Khách sạn có cọc')).toMatchObject({ depositAmount: 500000 })
+
+    view.unmount()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Chỉnh sửa Khách sạn có cọc' }))
+    expect(within(screen.getByRole('dialog', { name: /chỉnh sửa chi phí/i })).getByLabelText('Cọc tiền')).toHaveValue('500.000')
+  })
+
   it('edits an existing expense', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -445,8 +506,9 @@ describe('Walking Through Concerts dashboard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Chỉnh sửa Vé cũ' }))
     const dialog = screen.getByRole('dialog', { name: /chỉnh sửa chi phí/i })
-    expect(within(dialog).getByLabelText('Dự tính / người')).toHaveValue(1000000)
-    expect(within(dialog).getByLabelText('Thực tế / người')).toHaveValue(1000000)
+    expect(within(dialog).getByLabelText('Dự tính / người')).toHaveValue('1.000.000')
+    expect(within(dialog).getByLabelText('Thực tế / người')).toHaveValue('1.000.000')
+    expect(within(dialog).getByLabelText('Cọc tiền')).toHaveValue('0')
     expect(within(dialog).getByLabelText('Số người')).toHaveValue('1')
   })
 
@@ -488,7 +550,7 @@ describe('Walking Through Concerts dashboard', () => {
     view.unmount()
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Chỉnh sửa IU' }))
-    expect(within(screen.getByRole('dialog', { name: /chỉnh sửa concert/i })).getByLabelText('Tổng budget dự tính')).toHaveValue(25_000_000)
+    expect(within(screen.getByRole('dialog', { name: /chỉnh sửa concert/i })).getByLabelText('Tổng budget dự tính')).toHaveValue('25.000.000')
   })
 
   it('rejects a negative concert budget', async () => {

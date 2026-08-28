@@ -235,6 +235,7 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 .report-list { overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .report-row { min-height: 49px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 11px; border-bottom: 1px solid var(--line); font-size: 11px; }.report-row:last-child { border-bottom: 0; }.report-row > span, .report-row > div { min-width: 0; }.report-row > span > strong, .report-row > span > small, .report-row > div > strong, .report-row > div > small { display: block; }.report-row > span > small, .report-row > div > small { margin-top: 3px; color: var(--muted); font-size: 9px; }.report-row > div { flex: 0 0 auto; text-align: right; }.report-row > div > strong { font-variant-numeric: tabular-nums; }
 .expense-money-row { grid-template-columns: 1fr 1fr 105px; }
+.deposit-summary-row { display: grid; grid-template-columns: minmax(150px, .75fr) minmax(0, 2fr); gap: 12px; align-items: end; }
 .expense-calculation { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--border); }
 .expense-calculation > div { padding: 11px 13px; background: linear-gradient(120deg, var(--surface-peach), var(--surface)); }
 .expense-calculation span, .expense-calculation strong { display: block; }
@@ -280,7 +281,7 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
   .report-columns { grid-template-columns: 1fr; }.report-summary { grid-template-columns: 1fr; }
   .expense-row, .concert-expense-table .expense-row { grid-template-columns: 31px 1fr 57px; gap: 9px; }.expense-costs { grid-column: 2 / -1; grid-row: 2; display: flex; justify-content: space-between; padding: 8px 0 2px; border-top: 1px dashed var(--line); text-align: left; }.expense-costs > span, .expense-costs > strong { justify-content: start; }
   .table-pagination { min-height: 50px; }.pagination-summary { display: none; }.pagination-controls { width: 100%; justify-content: space-between; }.concert-expenses-panel .table-pagination { margin-inline: 12px; }
-  .form-row, .expense-money-row { grid-template-columns: 1fr; }.expense-calculation { grid-template-columns: 1fr; }.modal { padding: 20px; }.modal-actions { display: grid; grid-template-columns: 1fr 1fr; }.modal-actions button { justify-content: center; }
+  .form-row, .expense-money-row, .deposit-summary-row { grid-template-columns: 1fr; }.expense-calculation { grid-template-columns: 1fr; }.modal { padding: 20px; }.modal-actions { display: grid; grid-template-columns: 1fr 1fr; }.modal-actions button { justify-content: center; }
 }
 
 @media (max-width: 360px) {
