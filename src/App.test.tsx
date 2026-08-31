@@ -324,7 +324,6 @@ describe('Walking Through Concerts dashboard', () => {
 
   it('returns to a valid page when deleting the only item on the last page', async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     localStorage.setItem('walking-through-concerts-data-v2', JSON.stringify({
       concerts: [{ id: 'concert-page', artist: 'TEST', tour: 'PAGING', city: 'Hà Nội', date: '2026-10-10', venue: 'Stadium', status: 'upcoming', color: '#f5e9eb', accent: '#8c5261' }],
       expenses: Array.from({ length: 5 }, (_, index) => ({ id: `expense-page-${index + 1}`, name: `Khoản chi ${index + 1}`, concertId: 'concert-page', category: 'Cá nhân', plannedAmount: 100_000, actualAmount: 90_000, peopleCount: 1, date: '2026-08-01' })),
@@ -336,6 +335,7 @@ describe('Walking Through Concerts dashboard', () => {
     expect(within(recentExpenses).getByText('Khoản chi 5')).toBeInTheDocument()
 
     await user.click(within(recentExpenses).getByRole('button', { name: 'Xóa Khoản chi 5' }))
+    await user.click(within(screen.getByRole('alertdialog', { name: 'Xóa khoản chi?' })).getByRole('button', { name: 'Xóa khoản chi' }))
 
     expect(within(recentExpenses).getByText('Khoản chi 1')).toBeInTheDocument()
     expect(within(recentExpenses).queryByRole('navigation', { name: 'Phân trang Chi phí gần đây' })).not.toBeInTheDocument()
@@ -598,29 +598,56 @@ describe('Walking Through Concerts dashboard', () => {
   })
 
   it('deletes an expense after confirmation', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Xóa Vé VIP Soundcheck' }))
+
+    const confirmation = screen.getByRole('alertdialog', { name: 'Xóa khoản chi?' })
+    expect(within(confirmation).getByText('Vé VIP Soundcheck')).toBeInTheDocument()
+    expect(within(confirmation).getByText('7.850.000 ₫')).toBeInTheDocument()
+    expect(screen.getAllByText('Vé VIP Soundcheck').length).toBeGreaterThan(1)
+
+    await user.click(within(confirmation).getByRole('button', { name: 'Xóa khoản chi' }))
     expect(screen.queryByText('Vé VIP Soundcheck')).not.toBeInTheDocument()
     expect(screen.getByText('17.000.000 ₫')).toBeInTheDocument()
   })
 
   it('keeps an expense when deletion is cancelled', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Xóa Vé VIP Soundcheck' }))
+    const confirmation = screen.getByRole('alertdialog', { name: 'Xóa khoản chi?' })
+    await user.click(within(confirmation).getByRole('button', { name: 'Giữ lại' }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(screen.getByText('Vé VIP Soundcheck')).toBeInTheDocument()
   })
 
   it('deletes a concert and all of its linked expenses', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Xóa SEVENTEEN' }))
+
+    const confirmation = screen.getByRole('alertdialog', { name: 'Xóa concert?' })
+    expect(within(confirmation).getByText('SEVENTEEN')).toBeInTheDocument()
+    expect(within(confirmation).getByText('3 khoản chi liên quan')).toBeInTheDocument()
+
+    await user.click(within(confirmation).getByRole('button', { name: 'Xóa concert' }))
     expect(screen.queryByText('RIGHT HERE')).not.toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Tổng quan chi tiêu' })).getByText('9.420.000 ₫')).toBeInTheDocument()
+  })
+
+  it('closes a deletion confirmation with Escape and restores focus', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const deleteButton = screen.getByRole('button', { name: 'Xóa Vé VIP Soundcheck' })
+    await user.click(deleteButton)
+
+    expect(screen.getByRole('alertdialog', { name: 'Xóa khoản chi?' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(deleteButton).toHaveFocus()
   })
 
   it('filters concerts with search and shows an empty state', async () => {

@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   CircleUserRound,
   Clock3,
   Heart,
@@ -72,6 +73,7 @@ type StoredConcert = Omit<Concert, 'estimatedBudget'> & { estimatedBudget?: numb
 type StoredData = { concerts: StoredConcert[]; expenses: StoredExpense[] }
 type AppPreferences = { displayName: string; tagline: string; budget: number }
 type ModalState = { type: 'expense'; item?: Expense; concertId?: string } | { type: 'concert'; item?: Concert } | { type: 'report' } | { type: 'settings' } | null
+type ConfirmationState = { type: 'expense'; item: Expense } | { type: 'concert'; item: Concert } | null
 type ExpenseSort = 'recent-added' | 'date-desc' | 'date-asc' | 'planned-desc' | 'actual-desc'
 type YearFilter = number | 'all'
 
@@ -226,6 +228,7 @@ function App() {
   const [filter, setFilter] = useState<Filter>('upcoming')
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ModalState>(null)
+  const [confirmation, setConfirmation] = useState<ConfirmationState>(null)
   const [expandedConcertId, setExpandedConcertId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const [expenseNameFilter, setExpenseNameFilter] = useState('')
@@ -242,6 +245,7 @@ function App() {
   }, [preferences])
 
   const closeModal = useCallback(() => setModal(null), [])
+  const closeConfirmation = useCallback(() => setConfirmation(null), [])
   const availableYears = useMemo(() => [...new Set(data.concerts.map(getConcertYear).filter(Number.isFinite))].sort((first, second) => second - first), [data.concerts])
   const yearConcerts = useMemo(() => selectedYear === 'all' ? data.concerts : data.concerts.filter((concert) => getConcertYear(concert) === selectedYear), [data.concerts, selectedYear])
   const yearConcertIds = useMemo(() => new Set(yearConcerts.map((concert) => concert.id)), [yearConcerts])
@@ -331,18 +335,30 @@ function App() {
   }
 
   const deleteExpense = (expense: Expense) => {
-    if (!window.confirm(`Xóa khoản chi “${expense.name}”?`)) return
-    setData((current) => ({ ...current, expenses: current.expenses.filter((item) => item.id !== expense.id) }))
-    setAnnouncement('Đã xóa khoản chi')
+    setConfirmation({ type: 'expense', item: expense })
   }
 
   const deleteConcert = (concert: Concert) => {
-    if (!window.confirm(`Xóa concert “${concert.artist}” và toàn bộ chi phí liên quan?`)) return
-    const remainingConcerts = data.concerts.filter((item) => item.id !== concert.id)
-    setData((current) => ({ concerts: remainingConcerts, expenses: current.expenses.filter((expense) => expense.concertId !== concert.id) }))
+    setConfirmation({ type: 'concert', item: concert })
+  }
+
+  const confirmDeletion = () => {
+    if (!confirmation) return
+    if (confirmation.type === 'expense') {
+      const expenseId = confirmation.item.id
+      setData((current) => ({ ...current, expenses: current.expenses.filter((item) => item.id !== expenseId) }))
+      setAnnouncement('Đã xóa khoản chi')
+      closeConfirmation()
+      return
+    }
+
+    const concertId = confirmation.item.id
+    const remainingConcerts = data.concerts.filter((item) => item.id !== concertId)
+    setData((current) => ({ concerts: remainingConcerts, expenses: current.expenses.filter((expense) => expense.concertId !== concertId) }))
     if (selectedYear !== 'all' && !remainingConcerts.some((item) => getConcertYear(item) === selectedYear)) setSelectedYear(getDefaultYear(remainingConcerts))
-    setExpandedConcertId((current) => current === concert.id ? null : current)
+    setExpandedConcertId((current) => current === concertId ? null : current)
     setAnnouncement('Đã xóa concert')
+    closeConfirmation()
   }
 
   const upcomingCount = yearConcerts.filter((concert) => concert.status === 'upcoming').length
@@ -475,6 +491,7 @@ function App() {
       {modal?.type === 'concert' && <ConcertModal key={modal.item?.id ?? 'new-concert'} item={modal.item} onClose={closeModal} onSave={saveConcert} />}
       {modal?.type === 'report' && <ReportModal expenses={yearExpenses} concerts={yearConcerts} totalPlanned={totalPlanned} totalActual={totalActual} budget={preferences.budget} periodLabel={selectedYear === 'all' ? 'Tất cả năm' : `Năm ${selectedYear}`} onClose={closeModal} />}
       {modal?.type === 'settings' && <SettingsModal preferences={preferences} onClose={closeModal} onSave={savePreferences} />}
+      {confirmation && <ConfirmationDialog confirmation={confirmation} concerts={data.concerts} expenses={data.expenses} onClose={closeConfirmation} onConfirm={confirmDeletion} />}
       <div className={`toast ${announcement ? 'show' : ''}`} role="status" aria-live="polite"><Heart size={16} fill="currentColor" />{announcement}</div>
     </div>
   )
@@ -542,12 +559,13 @@ function ExpenseRow({ expense, concert, onEdit, onDelete }: { expense: Expense; 
   return <div className="expense-row"><div className={`expense-icon ${iconClass}`}><Icon size={19} aria-hidden="true" /></div><div className="expense-name"><strong>{expense.name}</strong><span>{concert ? `${concert.artist} · ${concert.city}` : 'Không gắn concert'}</span><small>{expense.peopleCount} người</small></div><span className="expense-category">{getCategoryLabel(expense)}</span><span className="expense-date">{formatExpenseDate(expense.date)}</span><div className="expense-costs"><span><small>Dự tính</small>{formatMoney(getPlannedTotal(expense))}</span><strong><small>Thực tế</small>− {formatMoney(getActualTotal(expense))}</strong></div><div className="row-actions"><button aria-label={`Chỉnh sửa ${expense.name}`} onClick={onEdit}><Pencil size={15} /></button><button aria-label={`Xóa ${expense.name}`} onClick={onDelete}><Trash2 size={15} /></button></div></div>
 }
 
-function useAccessibleModal(onClose: () => void) {
+function useAccessibleModal(onClose: () => void, initialFocusRef?: { current: HTMLElement | null }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousFocus = useRef<HTMLElement | null>(null)
   useEffect(() => {
     previousFocus.current = document.activeElement as HTMLElement
-    dialogRef.current?.focus()
+    const focusTarget = initialFocusRef?.current ?? dialogRef.current
+    focusTarget?.focus()
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
       if (event.key !== 'Tab' || !dialogRef.current) return
@@ -560,8 +578,48 @@ function useAccessibleModal(onClose: () => void) {
     }
     document.addEventListener('keydown', handleKey)
     return () => { document.removeEventListener('keydown', handleKey); previousFocus.current?.focus() }
-  }, [onClose])
+  }, [initialFocusRef, onClose])
   return dialogRef
+}
+
+function ConfirmationDialog({ confirmation, concerts, expenses, onClose, onConfirm }: { confirmation: Exclude<ConfirmationState, null>; concerts: Concert[]; expenses: Expense[]; onClose: () => void; onConfirm: () => void }) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useAccessibleModal(onClose, cancelButtonRef)
+  const isExpense = confirmation.type === 'expense'
+  const title = isExpense ? 'Xóa khoản chi?' : 'Xóa concert?'
+  const itemName = isExpense ? confirmation.item.name : confirmation.item.artist
+  const linkedConcert = isExpense ? concerts.find((concert) => concert.id === confirmation.item.concertId) : undefined
+  const linkedExpenseCount = isExpense ? 0 : expenses.filter((expense) => expense.concertId === confirmation.item.id).length
+  const description = isExpense
+    ? 'Khoản chi này sẽ được gỡ khỏi lịch sử và tổng chi tiêu của bạn.'
+    : 'Concert cùng toàn bộ chi phí đã ghi lại bên trong sẽ bị xóa.'
+
+  return <div className="modal-backdrop confirmation-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <div className="confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirmation-title" aria-describedby="confirmation-description confirmation-warning" ref={dialogRef} tabIndex={-1}>
+      <div className="confirmation-icon" aria-hidden="true"><span><Trash2 size={23} /></span></div>
+      <div className="confirmation-copy">
+        <p className="section-kicker">XÁC NHẬN XÓA</p>
+        <h2 id="confirmation-title">{title}</h2>
+        <p id="confirmation-description">{description}</p>
+      </div>
+      <div className="confirmation-summary">
+        <span className="confirmation-summary-icon" aria-hidden="true">{isExpense ? <ReceiptText size={19} /> : <Ticket size={19} />}</span>
+        <div>
+          <span>{isExpense ? 'KHOẢN CHI' : 'CONCERT'}</span>
+          <strong>{itemName}</strong>
+          <small>{isExpense ? (linkedConcert ? `${linkedConcert.artist} · ${linkedConcert.city}` : getCategoryLabel(confirmation.item)) : `${confirmation.item.tour} · ${confirmation.item.city}`}</small>
+        </div>
+        {isExpense
+          ? <strong className="confirmation-amount">{formatMoney(getActualTotal(confirmation.item))}</strong>
+          : <span className="confirmation-impact">{linkedExpenseCount} khoản chi liên quan</span>}
+      </div>
+      <div className="confirmation-warning" id="confirmation-warning"><CircleAlert size={16} aria-hidden="true" /><span>Thao tác này không thể hoàn tác.</span></div>
+      <div className="confirmation-actions">
+        <button type="button" className="confirmation-cancel-button" onClick={onClose} ref={cancelButtonRef}>Giữ lại</button>
+        <button type="button" className="confirmation-delete-button" onClick={onConfirm}><Trash2 size={16} aria-hidden="true" />{isExpense ? 'Xóa khoản chi' : 'Xóa concert'}</button>
+      </div>
+    </div>
+  </div>
 }
 
 function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { item?: Expense; initialConcertId?: string; concerts: Concert[]; onClose: () => void; onSave: (expense: Expense) => void }) {

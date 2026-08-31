@@ -242,11 +242,40 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 .expense-calculation span { color: var(--muted); font-size: 10px; font-weight: 600; }
 .expense-calculation strong { margin-top: 3px; font-size: 15px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 5px; }.modal-actions button { min-height: 40px; padding: 10px 16px; border-radius: 8px; font-size: 11px; font-weight: 800; }.cancel-button { border: 1px solid var(--border-strong); background: transparent; color: var(--ink); }.save-button { display: flex; align-items: center; gap: 7px; border: 1px solid #bd887e; background: #e8b5ab; color: var(--ink); box-shadow: 0 2px 7px rgba(73,54,60,.09); }
+.confirmation-backdrop { background: rgba(49,35,40,.5); backdrop-filter: blur(8px) saturate(.9); }
+.confirmation-modal { position: relative; width: min(460px, 100%); overflow: hidden; padding: 29px; border: 1px solid #dbc8c5; border-radius: 19px; background: var(--paper); box-shadow: 0 24px 70px rgba(56,35,42,.24), 0 3px 12px rgba(73,54,60,.08); animation: confirmIn .24s cubic-bezier(.2,.8,.2,1); }
+.confirmation-modal::before { content: ''; position: absolute; inset: 0 0 auto; height: 4px; background: linear-gradient(90deg, #c67e86, #e4a398 54%, #d7a270); }
+.confirmation-icon { width: 58px; height: 58px; display: grid; place-items: center; margin-bottom: 18px; border: 1px solid #e5c7c8; border-radius: 18px; background: #f8e9e9; color: #943d49; box-shadow: inset 0 0 0 6px rgba(255,253,251,.62); transform: rotate(-3deg); }
+.confirmation-icon > span { display: grid; place-items: center; transform: rotate(3deg); }
+.confirmation-copy .section-kicker { margin-bottom: 6px; color: #9a4652; }
+.confirmation-copy h2 { margin: 0; color: var(--ink); font-size: 24px; letter-spacing: -.025em; }
+.confirmation-copy > p:last-child { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.confirmation-summary { position: relative; min-width: 0; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 11px; margin-top: 21px; padding: 14px; border: 1px solid var(--border-strong); border-radius: 12px; background: linear-gradient(110deg, var(--surface-pink), var(--surface-peach)); }
+.confirmation-summary::before, .confirmation-summary::after { content: ''; position: absolute; top: 50%; width: 10px; height: 10px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--paper); transform: translateY(-50%); }
+.confirmation-summary::before { left: -6px; }.confirmation-summary::after { right: -6px; }
+.confirmation-summary-icon { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid rgba(140,82,97,.2); border-radius: 10px; background: rgba(255,253,251,.78); color: var(--accent-strong); }
+.confirmation-summary > div { min-width: 0; padding-right: 4px; }
+.confirmation-summary > div > span, .confirmation-summary > div > strong, .confirmation-summary > div > small { display: block; }
+.confirmation-summary > div > span { color: var(--muted); font: 800 8px var(--font-label); letter-spacing: .11em; }
+.confirmation-summary > div > strong { margin-top: 2px; overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.confirmation-summary > div > small { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.confirmation-amount { color: #8d3a46; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.confirmation-impact { padding: 5px 8px; border: 1px solid #d9b9b9; border-radius: 999px; background: rgba(255,253,251,.72); color: #8d3a46; font-size: 9px; font-weight: 800; white-space: nowrap; }
+.confirmation-warning { display: flex; align-items: center; gap: 7px; margin-top: 13px; color: #82535a; font-size: 10px; font-weight: 650; }
+.confirmation-warning svg { flex: 0 0 auto; color: #a44d58; }
+.confirmation-actions { display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; margin-top: 24px; }
+.confirmation-actions button { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 10px; font-size: 11px; font-weight: 800; transition: transform .16s ease, background .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.confirmation-actions button:hover { transform: translateY(-1px); }
+.confirmation-cancel-button { border: 1px solid var(--border-strong); background: var(--surface); color: var(--ink); }
+.confirmation-cancel-button:hover { border-color: #c5aca8; background: var(--surface-soft); }
+.confirmation-delete-button { border: 1px solid #8e3a46; background: #994451; color: #fffaf8; box-shadow: 0 6px 16px rgba(126,48,61,.2); }
+.confirmation-delete-button:hover { border-color: #7e303d; background: #873744; box-shadow: 0 8px 20px rgba(126,48,61,.24); }
 .toast { position: fixed; z-index: 90; right: 25px; bottom: 25px; display: flex; align-items: center; gap: 8px; padding: 11px 15px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-pink); color: var(--ink); box-shadow: var(--shadow-soft); font-size: 11px; font-weight: 700; opacity: 0; transform: translateY(10px); pointer-events: none; transition: .2s ease; }.toast.show { opacity: 1; transform: translateY(0); }.toast svg { color: var(--rose); }
 .mobile-nav { display: none; }
 
 @keyframes fadeIn { from { opacity: 0; } }
 @keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+@keyframes confirmIn { from { opacity: 0; transform: translateY(14px) scale(.965); } }
 @keyframes expenseReveal { from { opacity: 0; transform: translateY(-6px); } }
 
 @media (max-width: 1080px) {
@@ -282,6 +311,7 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
   .expense-row, .concert-expense-table .expense-row { grid-template-columns: 31px 1fr 57px; gap: 9px; }.expense-costs { grid-column: 2 / -1; grid-row: 2; display: flex; justify-content: space-between; padding: 8px 0 2px; border-top: 1px dashed var(--line); text-align: left; }.expense-costs > span, .expense-costs > strong { justify-content: start; }
   .table-pagination { min-height: 50px; }.pagination-summary { display: none; }.pagination-controls { width: 100%; justify-content: space-between; }.concert-expenses-panel .table-pagination { margin-inline: 12px; }
   .form-row, .expense-money-row, .deposit-summary-row { grid-template-columns: 1fr; }.expense-calculation { grid-template-columns: 1fr; }.modal { padding: 20px; }.modal-actions { display: grid; grid-template-columns: 1fr 1fr; }.modal-actions button { justify-content: center; }
+  .confirmation-modal { padding: 24px 20px 20px; border-radius: 17px; }.confirmation-icon { width: 52px; height: 52px; margin-bottom: 15px; }.confirmation-copy h2 { font-size: 22px; }.confirmation-summary { grid-template-columns: 36px minmax(0, 1fr); }.confirmation-amount, .confirmation-impact { grid-column: 2; width: max-content; margin-top: 2px; }.confirmation-actions { margin-top: 20px; }
 }
 
 @media (max-width: 360px) {
