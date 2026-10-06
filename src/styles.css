@@ -166,10 +166,13 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
 .concert-expenses-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 19px 19px 15px; background: linear-gradient(105deg, var(--surface-pink), var(--surface-peach)); border-bottom: 1px solid var(--border); }
 .concert-expenses-header h3 { margin: 0 0 4px; font-size: 17px; letter-spacing: -.02em; }
 .concert-expenses-header > div > span { color: var(--muted); font-size: 11px; }
-.concert-expenses-summary { display: flex; align-items: center; gap: 14px; text-align: right; }
-.concert-expenses-summary > div { display: grid; gap: 3px; }
-.concert-expenses-summary > div span { display: flex; justify-content: flex-end; gap: 7px; color: var(--muted); font-size: 10px; }
-.concert-expenses-summary > div strong { min-width: 100px; color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+.concert-expenses-summary { display: grid; justify-items: end; gap: 10px; text-align: right; }
+.concert-expenses-totals { display: grid; gap: 3px; }
+.concert-expenses-totals span { display: flex; justify-content: flex-end; gap: 7px; color: var(--muted); font-size: 10px; }
+.concert-expenses-totals strong { min-width: 100px; color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+.concert-expenses-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.concert-expenses-actions .text-button { min-height: 36px; white-space: nowrap; }
+.concert-expenses-actions .text-button:disabled { cursor: wait; opacity: .6; }
 .concert-information { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; padding: 14px 18px 0; }
 .concert-announcement, .concert-related-info { display: flex; align-items: flex-start; gap: 10px; padding: 12px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); color: var(--muted); }
 .concert-announcement { background: var(--surface-peach); }
@@ -306,6 +309,9 @@ h1 svg { color: var(--coral); transform: rotate(-8deg); }
   .section-heading { align-items: start; }.filter-tabs button { padding-inline: 7px; }
   .concert-ticket { min-height: 148px; grid-template-columns: 82px 1fr 15px; }.concert-ticket-toggle { grid-template-columns: 82px minmax(0, 1fr); }.poster-orbit { right: 7px; }.ticket-info { padding-right: 61px; }.ticket-info h3 { font-size: 15px; }.ticket-meta span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 145px; }.ticket-footer { gap: 6px; }.row-actions button { width: 27px; height: 27px; }.ticket-actions { right: 23px; }.ticket-details-hint { display: none; }.concert-expenses-panel { margin-inline: 8px; }.concert-expenses-header { display: grid; gap: 12px; padding: 17px 14px 13px; }.concert-expenses-summary { display: flex; justify-content: space-between; align-items: center; text-align: left; }.concert-expense-table { padding-inline: 12px; }
   .concert-information { grid-template-columns: 1fr; padding-inline: 12px; }
+  .concert-expenses-summary { display: grid; justify-items: stretch; }
+  .concert-expenses-totals span { justify-content: space-between; }
+  .concert-expenses-actions { justify-content: flex-start; }
   .expense-filters { grid-template-columns: 1fr; padding: 12px; }
   .report-columns { grid-template-columns: 1fr; }.report-summary { grid-template-columns: 1fr; }
   .expense-row, .concert-expense-table .expense-row { grid-template-columns: 31px 1fr 57px; gap: 9px; }.expense-costs { grid-column: 2 / -1; grid-row: 2; display: flex; justify-content: space-between; padding: 8px 0 2px; border-top: 1px dashed var(--line); text-align: left; }.expense-costs > span, .expense-costs > strong { justify-content: start; }

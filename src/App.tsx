@@ -14,6 +14,7 @@ import {
   Home,
   Info,
   ExternalLink,
+  FileSpreadsheet,
   MapPin,
   Pencil,
   Plus,
@@ -28,39 +29,11 @@ import {
   WalletCards,
   X,
 } from 'lucide-react'
+import type { Category, Concert, ConcertStatus, Expense } from './types'
+import { getActualTotal, getCategoryLabel, getPlannedTotal } from './expense-utils'
+import { downloadConcertExpenses } from './concert-export'
 
-type ConcertStatus = 'upcoming' | 'past'
 type Filter = 'all' | ConcertStatus
-type Category = 'Vé concert' | 'Di chuyển' | 'Lưu trú' | 'Ăn uống' | 'Merchandise' | 'Freebies' | 'Cá nhân' | 'Chuẩn bị' | 'Trang phục & làm đẹp' | 'Fan project' | 'Quà tặng' | 'Phí dịch vụ' | 'Bảo hiểm' | 'SIM & Internet' | 'Khác'
-
-type Concert = {
-  id: string
-  artist: string
-  tour: string
-  city: string
-  date: string
-  venue: string
-  status: ConcertStatus
-  color: string
-  accent: string
-  estimatedBudget: number
-  ticketUrl?: string
-  relatedInfo?: string
-  announcement?: string
-}
-
-type Expense = {
-  id: string
-  name: string
-  concertId: string
-  category: Category
-  customCategory?: string
-  plannedAmount: number
-  actualAmount: number
-  depositAmount?: number
-  peopleCount: number
-  date: string
-}
 
 type AppData = { concerts: Concert[]; expenses: Expense[] }
 type StoredExpense = Omit<Expense, 'plannedAmount' | 'actualAmount' | 'peopleCount'> & {
@@ -160,9 +133,6 @@ const loadData = (): AppData => {
   }
 }
 
-const getPlannedTotal = (expense: Expense) => expense.plannedAmount * expense.peopleCount + (expense.depositAmount ?? 0)
-const getActualTotal = (expense: Expense) => expense.actualAmount * expense.peopleCount
-const getCategoryLabel = (expense: Expense) => expense.category === 'Khác' && expense.customCategory ? expense.customCategory : expense.category
 const isSafeExternalUrl = (value: string) => {
   try {
     const url = new URL(value)
@@ -342,6 +312,16 @@ function App() {
     setConfirmation({ type: 'concert', item: concert })
   }
 
+  const exportConcertExpenses = async (concert: Concert, expenses: Expense[]) => {
+    setAnnouncement('')
+    try {
+      await downloadConcertExpenses(concert, expenses)
+      setAnnouncement(`Đã xuất Excel chi phí ${concert.artist}`)
+    } catch {
+      setAnnouncement('Không thể xuất Excel. Vui lòng thử lại.')
+    }
+  }
+
   const confirmDeletion = () => {
     if (!confirmation) return
     if (confirmation.type === 'expense') {
@@ -449,6 +429,7 @@ function App() {
                   isExpanded={expandedConcertId === concert.id}
                   onToggle={() => setExpandedConcertId((current) => current === concert.id ? null : concert.id)}
                   onAddExpense={() => setModal({ type: 'expense', concertId: concert.id })}
+                  onExport={() => exportConcertExpenses(concert, concertExpenses)}
                   onEdit={() => setModal({ type: 'concert', item: concert })}
                   onDelete={() => deleteConcert(concert)}
                   onEditExpense={(expense) => setModal({ type: 'expense', item: expense })}
@@ -506,11 +487,21 @@ function Topbar({ query, onQueryChange, onAddExpense, onAddConcert }: { query: s
   return <header className="topbar"><div className="mobile-brand"><span className="brand-mark"><img src={PET_LOGO} alt="DV V-eri" /></span><b>CONCERTS</b></div><label className="search-box" htmlFor="site-search"><Search size={17} aria-hidden="true" /><span className="sr-only">Tìm kiếm</span><input id="site-search" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Tìm concert, nghệ sĩ..." /><kbd>⌘ K</kbd></label><div className="topbar-actions"><button className="secondary-button" onClick={onAddConcert}><Ticket size={17} aria-hidden="true" /> Thêm concert</button><button className="add-button" onClick={onAddExpense}><Plus size={17} aria-hidden="true" /> Thêm chi phí</button></div></header>
 }
 
-function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddExpense, onEdit, onDelete, onEditExpense, onDeleteExpense }: { concert: Concert; expenses: Expense[]; totals: { planned: number; actual: number }; isExpanded: boolean; onToggle: () => void; onAddExpense: () => void; onEdit: () => void; onDelete: () => void; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
+function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddExpense, onExport, onEdit, onDelete, onEditExpense, onDeleteExpense }: { concert: Concert; expenses: Expense[]; totals: { planned: number; actual: number }; isExpanded: boolean; onToggle: () => void; onAddExpense: () => void; onExport: () => Promise<void>; onEdit: () => void; onDelete: () => void; onEditExpense: (expense: Expense) => void; onDeleteExpense: (expense: Expense) => void }) {
+  const [isExporting, setIsExporting] = useState(false)
   const detailsId = `concert-expenses-${concert.id}`
   const titleId = `${detailsId}-title`
   const pagination = usePagination(expenses.length)
   const hasConcertInformation = Boolean(concert.ticketUrl || concert.relatedInfo || concert.announcement)
+  const handleExport = async () => {
+    if (isExporting) return
+    setIsExporting(true)
+    try {
+      await onExport()
+    } finally {
+      setIsExporting(false)
+    }
+  }
   return <div className={`concert-entry ${isExpanded ? 'is-open' : ''}`}>
     <article className="concert-ticket" style={{ '--ticket-color': concert.color, '--ticket-accent': concert.accent } as CSSProperties}>
       <button type="button" className="concert-ticket-toggle" aria-label={`${isExpanded ? 'Ẩn' : 'Xem'} chi phí ${concert.artist}`} aria-expanded={isExpanded} aria-controls={detailsId} onClick={onToggle}>
@@ -523,7 +514,13 @@ function ConcertTicket({ concert, expenses, totals, isExpanded, onToggle, onAddE
     {isExpanded && <section id={detailsId} className="concert-expenses-panel" role="region" aria-labelledby={titleId}>
       <div className="concert-expenses-header">
         <div><p className="section-kicker">CHI TIẾT CHI TIÊU</p><h3 id={titleId}>Chi phí của {concert.artist}</h3><span>{expenses.length} khoản chi · {concert.city}</span></div>
-        <div className="concert-expenses-summary"><div><span>Budget <strong>{formatMoney(concert.estimatedBudget)}</strong></span><span>Dự tính <strong>{formatMoney(totals.planned)}</strong></span><span>Thực tế <strong>{formatMoney(totals.actual)}</strong></span></div><button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button></div>
+        <div className="concert-expenses-summary">
+          <div className="concert-expenses-totals"><span>Budget <strong>{formatMoney(concert.estimatedBudget)}</strong></span><span>Dự tính <strong>{formatMoney(totals.planned)}</strong></span><span>Thực tế <strong>{formatMoney(totals.actual)}</strong></span></div>
+          <div className="concert-expenses-actions">
+            <button type="button" className="text-button" aria-label={`Xuất Excel chi phí ${concert.artist}`} aria-busy={isExporting} disabled={isExporting} onClick={handleExport}><FileSpreadsheet size={15} aria-hidden="true" />{isExporting ? 'Đang xuất...' : 'Xuất Excel'}</button>
+            <button type="button" className="text-button" aria-label={`Thêm chi phí cho ${concert.artist}`} onClick={onAddExpense}><Plus size={15} aria-hidden="true" /> Thêm chi phí</button>
+          </div>
+        </div>
       </div>
       {hasConcertInformation && <div className="concert-information" aria-label={`Thông tin concert ${concert.artist}`}>
         {concert.announcement && <div className="concert-announcement" role="note"><BellRing size={18} aria-hidden="true" /><div><strong>Thông báo / lưu ý</strong><p>{concert.announcement}</p></div></div>}
