@@ -61,6 +61,24 @@ const COMPANION_PETS = [
   { name: 'Tèolaegi Dâu Lá', image: `${import.meta.env.BASE_URL}teolaegi-dau-la.png` },
 ]
 const categories: Category[] = ['Vé concert', 'Di chuyển', 'Lưu trú', 'Ăn uống', 'Merchandise', 'Freebies', 'Cá nhân', 'Chuẩn bị', 'Trang phục & làm đẹp', 'Fan project', 'Quà tặng', 'Phí dịch vụ', 'Bảo hiểm', 'SIM & Internet', 'Khác']
+const expenseNameExamples: Record<Category, string[]> = {
+  'Vé concert': ['Vé VIP Soundcheck', 'Vé CAT 1', 'Phí đổi vé'],
+  'Di chuyển': ['Vé máy bay khứ hồi', 'Taxi về khách sạn', 'Tàu điện'],
+  'Lưu trú': ['Khách sạn', 'Homestay', 'Phí gửi hành lý'],
+  'Ăn uống': ['Ăn trước concert', 'Ăn tối sau concert', 'Đồ uống'],
+  Merchandise: ['Áo tour', 'Lightstick', 'Album'],
+  Freebies: ['In photocard', 'Quà freebies', 'Túi đựng quà'],
+  'Cá nhân': ['Chi phí cá nhân', 'Thuốc và vật dụng', 'Đồ dùng du lịch'],
+  'Chuẩn bị': ['Đồ chuẩn bị concert', 'Pin dự phòng', 'Phụ kiện'],
+  'Trang phục & làm đẹp': ['Trang phục concert', 'Làm tóc', 'Trang điểm'],
+  'Fan project': ['Banner fan project', 'In slogan', 'Quỹ fan project'],
+  'Quà tặng': ['Quà cho bạn đồng hành', 'Quà tặng nghệ sĩ', 'Thiệp chúc mừng'],
+  'Phí dịch vụ': ['Phí đặt vé', 'Phí chuyển khoản', 'Phí giao hàng'],
+  'Bảo hiểm': ['Bảo hiểm du lịch', 'Bảo hiểm vé', 'Bảo hiểm chuyến bay'],
+  'SIM & Internet': ['SIM du lịch', 'eSIM', 'Gói dữ liệu'],
+  Khác: ['Phí phát sinh', 'Phí gửi hành lý', 'Chi phí khác'],
+}
+const normalizeSuggestion = (value: string) => value.toLocaleLowerCase('vi').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd')
 const pastelPairs = [
   ['#ffd1d9', '#7d3047'],
   ['#ffd8bd', '#7a3b24'],
@@ -468,7 +486,7 @@ function App() {
       </main>
 
       <MobileNav onOpenSettings={() => setModal({ type: 'settings' })} />
-      {modal?.type === 'expense' && <ExpenseModal key={modal.item?.id ?? `new-expense-${modal.concertId ?? 'general'}`} item={modal.item} initialConcertId={modal.concertId} concerts={data.concerts} onClose={closeModal} onSave={saveExpense} />}
+      {modal?.type === 'expense' && <ExpenseModal key={modal.item?.id ?? `new-expense-${modal.concertId ?? 'general'}`} item={modal.item} initialConcertId={modal.concertId} concerts={data.concerts} expenses={data.expenses} onClose={closeModal} onSave={saveExpense} />}
       {modal?.type === 'concert' && <ConcertModal key={modal.item?.id ?? 'new-concert'} item={modal.item} onClose={closeModal} onSave={saveConcert} />}
       {modal?.type === 'report' && <ReportModal expenses={yearExpenses} concerts={yearConcerts} totalPlanned={totalPlanned} totalActual={totalActual} budget={preferences.budget} periodLabel={selectedYear === 'all' ? 'Tất cả năm' : `Năm ${selectedYear}`} onClose={closeModal} />}
       {modal?.type === 'settings' && <SettingsModal preferences={preferences} onClose={closeModal} onSave={savePreferences} />}
@@ -619,7 +637,7 @@ function ConfirmationDialog({ confirmation, concerts, expenses, onClose, onConfi
   </div>
 }
 
-function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { item?: Expense; initialConcertId?: string; concerts: Concert[]; onClose: () => void; onSave: (expense: Expense) => void }) {
+function ExpenseModal({ item, initialConcertId, concerts, expenses, onClose, onSave }: { item?: Expense; initialConcertId?: string; concerts: Concert[]; expenses: Expense[]; onClose: () => void; onSave: (expense: Expense) => void }) {
   const [name, setName] = useState(item?.name ?? '')
   const [plannedAmount, setPlannedAmount] = useState(String(item?.plannedAmount ?? 1_200_000))
   const [actualAmount, setActualAmount] = useState(String(item?.actualAmount ?? 0))
@@ -632,7 +650,18 @@ function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { i
   const [error, setError] = useState('')
   const [customCategoryError, setCustomCategoryError] = useState('')
   const dialogRef = useAccessibleModal(onClose)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const isEditing = Boolean(item)
+  const nameQuery = normalizeSuggestion(name.trim())
+  const availableNameSuggestions = [...new Set([
+    ...expenses.filter((expense) => expense.category === category && expense.id !== item?.id).map((expense) => expense.name).reverse(),
+    ...expenseNameExamples[category],
+  ])].filter((suggestion) => normalizeSuggestion(suggestion) !== nameQuery)
+  const matchingNameSuggestions = availableNameSuggestions.filter((suggestion) => {
+    const normalized = normalizeSuggestion(suggestion)
+    return !nameQuery || normalized.includes(nameQuery)
+  })
+  const nameSuggestions = (matchingNameSuggestions.length ? matchingNameSuggestions : availableNameSuggestions).slice(0, 4)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -646,7 +675,12 @@ function ExpenseModal({ item, initialConcertId, concerts, onClose, onSave }: { i
 
   return <ModalFrame title={isEditing ? 'Chỉnh sửa chi phí' : 'Thêm chi phí mới'} kicker="GHI LẠI KỶ NIỆM" onClose={onClose} dialogRef={dialogRef}>
     <form onSubmit={submit} noValidate>
-      <div className="form-field"><label className="required-label" htmlFor="expense-name">Tên khoản chi</label><input id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />{error && <span id="expense-error" className="field-error" role="alert">{error}</span>}</div>
+      <div className="form-field">
+        <label className="required-label" htmlFor="expense-name">Tên khoản chi</label>
+        <input ref={nameInputRef} id="expense-name" value={name} onChange={(event) => { setName(event.target.value); setError('') }} placeholder="Ví dụ: Vé VIP, khách sạn..." autoComplete="off" aria-required="true" aria-invalid={Boolean(error)} aria-describedby={error ? 'expense-error' : undefined} autoFocus />
+        {error && <span id="expense-error" className="field-error" role="alert">{error}</span>}
+        {nameSuggestions.length > 0 && <div className="expense-name-suggestions" role="group" aria-label="Gợi ý tên khoản chi"><span>Gợi ý:</span>{nameSuggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => { setName(suggestion); setError(''); nameInputRef.current?.focus() }}>{suggestion}</button>)}</div>}
+      </div>
       <div className="form-row expense-money-row">
         <div className="form-field"><label htmlFor="expense-planned-amount">Dự tính / người</label><MoneyInput id="expense-planned-amount" value={plannedAmount} onValueChange={setPlannedAmount} /></div>
         <div className="form-field"><label htmlFor="expense-actual-amount">Thực tế / người</label><MoneyInput id="expense-actual-amount" value={actualAmount} onValueChange={setActualAmount} /></div>

@@ -390,6 +390,32 @@ describe('Walking Through Concerts dashboard', () => {
     expect(screen.getByText('Taxi về khách sạn')).toBeInTheDocument()
   })
 
+  it('suggests expense names from the selected category and keeps custom names editable', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: /thêm chi phí/i }))
+    const dialog = screen.getByRole('dialog', { name: 'Thêm chi phí mới' })
+    const name = within(dialog).getByLabelText('Tên khoản chi')
+
+    expect(within(dialog).getByRole('button', { name: 'Vé concert Seoul' })).toBeInTheDocument()
+    await user.type(name, 'Vs')
+    expect(within(dialog).getByRole('button', { name: 'Vé concert Seoul' })).toBeInTheDocument()
+    await user.clear(name)
+    await user.type(name, 've concert')
+    await user.click(within(dialog).getByRole('button', { name: 'Vé concert Seoul' }))
+    expect(name).toHaveValue('Vé concert Seoul')
+    expect(name).toHaveFocus()
+
+    await user.selectOptions(within(dialog).getByLabelText('Danh mục'), 'Di chuyển')
+    await user.clear(name)
+    await user.click(within(dialog).getByRole('button', { name: 'Taxi về khách sạn' }))
+    expect(name).toHaveValue('Taxi về khách sạn')
+
+    await user.clear(name)
+    await user.type(name, 'Thuê xe riêng')
+    expect(name).toHaveValue('Thuê xe riêng')
+  })
+
   it('offers more concert expense categories and saves a predefined choice', async () => {
     const user = userEvent.setup()
     render(<App />)
